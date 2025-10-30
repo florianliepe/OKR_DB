@@ -85,7 +85,7 @@ class Store {
     addObjective(data) { this._updateCurrentProject(p => {
         const activeCycle = p.cycles.find(c => c.status === 'Active');
         if (!activeCycle) return;
-        p.objectives.push({ id: `obj-${Date.now()}`, cycleId: activeCycle.id, ...data, progress: 0, keyResults: [] });
+        p.objectives.push({ id: `obj-${Date.now()}`, cycleId: activeCycle.id, ...data, progress: 0, keyResults: [], notes: data.notes || '' });
     }); }
     updateObjective(id, data) { this._updateCurrentProject(p => {
         const obj = p.objectives.find(o => o.id === id);
