@@ -141,7 +141,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const id = document.getElementById('objective-id').value;
                 const data = {
                     title: document.getElementById('objective-title').value,
-                    ownerId: document.getElementById('objective-owner').value
+                    ownerId: document.getElementById('objective-owner').value,
+                    notes: document.getElementById('objective-notes').value
                 };
                 if(id) store.updateObjective(id, data); else store.addObjective(data);
                 ui.hideModal('objectiveModal');
@@ -196,6 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const form = document.getElementById('objective-form');
                 form.reset();
                 document.getElementById('objective-id').value = '';
+                document.getElementById('objective-notes').value = '';
 
                 const ownerSelect = document.getElementById('objective-owner');
                 const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
@@ -208,6 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('objective-id').value = obj.id;
                     document.getElementById('objective-title').value = obj.title;
                     document.getElementById('objective-owner').value = obj.ownerId;
+                    document.getElementById('objective-notes').value = obj.notes || '';
                 } else {
                     document.getElementById('objective-modal-title').textContent = 'Add Objective';
                 }
