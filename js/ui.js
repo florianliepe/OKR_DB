@@ -164,6 +164,7 @@ class UI {
             const lowercasedTerm = searchTerm.toLowerCase();
             objectives = objectives.filter(o => 
                 o.title.toLowerCase().includes(lowercasedTerm) || 
+                (o.notes && o.notes.toLowerCase().includes(lowercasedTerm)) ||
                 o.keyResults.some(kr => kr.title.toLowerCase().includes(lowercasedTerm))
             );
         }
@@ -197,6 +198,10 @@ class UI {
     }
 
     renderOkrCard(objective, project) {
+        const notesHtml = (objective.notes && objective.notes.trim() !== '') 
+            ? `<div class="obj-notes">${marked.parse(objective.notes)}</div>` 
+            : '';
+
         return `
         <div class="card okr-card" id="obj-${objective.id}">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -212,6 +217,7 @@ class UI {
                         <span class="progress-bar-label">${objective.progress}%</span>
                     </div>
                 </div>
+                ${notesHtml}
                 <div class="key-results-list">
                     ${objective.keyResults.map(kr => this.renderKeyResult(kr, objective.id)).join('')}
                 </div>
@@ -358,7 +364,7 @@ class UI {
     renderObjectiveModal(owners = []) {
         return `
         <div class="modal fade" id="objectiveModal" tabindex="-1">
-            <div class="modal-dialog">
+            <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <form id="objective-form">
                         <div class="modal-header"><h5 class="modal-title" id="objective-modal-title">Add Objective</h5></div>
@@ -366,6 +372,7 @@ class UI {
                             <input type="hidden" id="objective-id">
                             <div class="mb-3"><label for="objective-title" class="form-label">Objective Title</label><input type="text" class="form-control" id="objective-title" required></div>
                             <div class="mb-3"><label for="objective-owner" class="form-label">Owner</label><select class="form-select" id="objective-owner" required></select></div>
+                            <div class="mb-3"><label for="objective-notes" class="form-label">Notes (Markdown supported)</label><textarea class="form-control" id="objective-notes" rows="5"></textarea></div>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
