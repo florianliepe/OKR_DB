@@ -39,6 +39,21 @@ body {
     border: 1px solid #495057;
 }
 
+.obj-notes {
+    background-color: rgba(0,0,0,0.1);
+    border-left: 3px solid #0d6efd;
+    padding: 0.5rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: var(--bs-secondary-color);
+}
+.obj-notes p:last-child {
+    margin-bottom: 0;
+}
+.obj-notes ul, .obj-notes ol {
+    padding-left: 1.2rem;
+}
+
 .kr-item {
     display: flex;
     align-items: center;
