@@ -157,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     startValue: document.getElementById('kr-start-value').value,
                     currentValue: document.getElementById('kr-current-value').value,
                     targetValue: document.getElementById('kr-target-value').value,
+                    confidence: document.getElementById('kr-confidence').value
                 };
                 if (krId) store.updateKeyResult(objId, krId, data); else store.addKeyResult(objId, data);
                 ui.hideModal('keyResultModal');
@@ -221,6 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 form.reset();
                 document.getElementById('kr-id').value = '';
                 document.getElementById('kr-start-value').value = 0;
+                document.getElementById('kr-confidence').value = 'On Track';
 
                 const objId = trigger.dataset.objectiveId;
                 document.getElementById('kr-objective-id').value = objId;
@@ -236,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     document.getElementById('kr-start-value').value = kr.startValue;
                     document.getElementById('kr-current-value').value = kr.currentValue;
                     document.getElementById('kr-target-value').value = kr.targetValue;
+                    document.getElementById('kr-confidence').value = kr.confidence || 'On Track';
                 } else {
                     document.getElementById('kr-modal-title').textContent = 'Add Key Result';
                     document.getElementById('kr-current-value').value = 0;
