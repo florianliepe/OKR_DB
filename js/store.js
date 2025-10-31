@@ -95,7 +95,7 @@ class Store {
     addKeyResult(objId, data) { this._updateCurrentProject(p => {
         const obj = p.objectives.find(o => o.id === objId);
         if (obj) {
-            obj.keyResults.push({id: `kr-${Date.now()}`, ...data});
+            obj.keyResults.push({id: `kr-${Date.now()}`, confidence: 'On Track', ...data});
             obj.progress = this.calculateProgress(obj);
         }
     });}
