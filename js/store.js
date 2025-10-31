@@ -92,21 +92,45 @@ class Store {
         if (obj) Object.assign(obj, data);
     });}
     deleteObjective(id) { this._updateCurrentProject(p => p.objectives = p.objectives.filter(o => o.id !== id));}
+    
     addKeyResult(objId, data) { this._updateCurrentProject(p => {
         const obj = p.objectives.find(o => o.id === objId);
         if (obj) {
-            obj.keyResults.push({id: `kr-${Date.now()}`, confidence: 'On Track', ...data});
+            const newKr = {
+                id: `kr-${Date.now()}`,
+                confidence: 'On Track',
+                ...data,
+                history: [{ date: new Date().toISOString().split('T')[0], value: data.currentValue }]
+            };
+            obj.keyResults.push(newKr);
             obj.progress = this.calculateProgress(obj);
         }
     });}
+    
     updateKeyResult(objId, krId, data) { this._updateCurrentProject(p => {
         const obj = p.objectives.find(o => o.id === objId);
         if (obj) {
             const kr = obj.keyResults.find(k => k.id === krId);
-            if(kr) Object.assign(kr, data);
+            if(kr) {
+                // Initialize history if it doesn't exist (for migrating old data)
+                if (!kr.history) kr.history = [];
+
+                // Check if currentValue has changed before adding a history entry
+                const hasValueChanged = kr.currentValue !== data.currentValue;
+
+                if (hasValueChanged) {
+                    kr.history.push({
+                        date: new Date().toISOString().split('T')[0],
+                        value: data.currentValue
+                    });
+                }
+                
+                Object.assign(kr, data);
+            }
             obj.progress = this.calculateProgress(obj);
         }
     });}
+
     deleteKeyResult(objId, krId) { this._updateCurrentProject(p => {
         const obj = p.objectives.find(o => o.id === objId);
         if (obj) {
