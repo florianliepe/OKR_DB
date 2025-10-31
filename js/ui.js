@@ -230,9 +230,20 @@ class UI {
 
     renderKeyResult(kr, objectiveId) {
         const progress = kr.progress || 0;
+        const confidence = kr.confidence || 'On Track';
+        const confidenceColors = {
+            'On Track': 'bg-success',
+            'At Risk': 'bg-warning',
+            'Off Track': 'bg-danger'
+        };
+        const badgeColor = confidenceColors[confidence];
+
         return `
         <div class="kr-item">
-            <div class="kr-title">${kr.title}</div>
+            <div class="kr-title">
+                <span class="badge ${badgeColor} me-2">${confidence}</span>
+                ${kr.title}
+            </div>
             <div class="kr-progress-container">
                 <small class="text-muted d-flex justify-content-between"><span>${kr.currentValue}</span> <span>of ${kr.targetValue}</span></small>
                 <div class="progress" style="--bs-progress-height: 0.75rem;">
@@ -395,9 +406,10 @@ class UI {
                             <input type="hidden" id="kr-id">
                             <div class="mb-3"><label for="kr-title" class="form-label">Key Result Title</label><input type="text" class="form-control" id="kr-title" required></div>
                             <div class="row">
-                                <div class="col"><label for="kr-start-value" class="form-label">Start Value</label><input type="number" class="form-control" id="kr-start-value" value="0" required></div>
-                                <div class="col"><label for="kr-current-value" class="form-label">Current Value</label><input type="number" class="form-control" id="kr-current-value" value="0" required></div>
-                                <div class="col"><label for="kr-target-value" class="form-label">Target Value</label><input type="number" class="form-control" id="kr-target-value" required></div>
+                                <div class="col-md-3"><label for="kr-start-value" class="form-label">Start Value</label><input type="number" class="form-control" id="kr-start-value" value="0" required></div>
+                                <div class="col-md-3"><label for="kr-current-value" class="form-label">Current Value</label><input type="number" class="form-control" id="kr-current-value" value="0" required></div>
+                                <div class="col-md-3"><label for="kr-target-value" class="form-label">Target Value</label><input type="number" class="form-control" id="kr-target-value" required></div>
+                                <div class="col-md-3"><label for="kr-confidence" class="form-label">Confidence</label><select class="form-select" id="kr-confidence" required><option>On Track</option><option>At Risk</option><option>Off Track</option></select></div>
                             </div>
                         </div>
                         <div class="modal-footer">
