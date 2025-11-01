@@ -101,3 +101,18 @@ body {
     transform: translateY(-5px);
     box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3);
 }
+
+.sparkline-placeholder,
+.sparkline {
+    width: 100%;
+    height: 20px;
+    margin-bottom: 2px;
+}
+
+.sparkline polyline {
+    fill: none;
+    stroke: var(--bs-info);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
