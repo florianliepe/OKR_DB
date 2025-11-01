@@ -18,6 +18,32 @@ class UI {
     showModal(id) { this._getOrInitModal(id)?.show(); }
     hideModal(id) { this._getOrInitModal(id)?.hide(); }
 
+    _createSparklineSVG(history) {
+        if (!history || history.length < 2) {
+            return '<div class="sparkline-placeholder"></div>'; // Return a placeholder for alignment
+        }
+
+        const width = 100;
+        const height = 20;
+        const strokeWidth = 2;
+        const values = history.map(h => Number(h.value));
+        
+        const minY = Math.min(...values);
+        const maxY = Math.max(...values);
+        const range = maxY - minY;
+
+        // Create a polyline string: "x1,y1 x2,y2 x3,y3..."
+        const points = values.map((val, i) => {
+            const x = (i / (values.length - 1)) * width;
+            // Adjust y to be within the visible area, accounting for stroke width
+            const y = height - strokeWidth - (range === 0 ? (height - 2 * strokeWidth) / 2 : ((val - minY) / range) * (height - 2 * strokeWidth));
+            return `${x.toFixed(2)},${y.toFixed(2)}`;
+        }).join(' ');
+
+        return `<svg class="sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none"><polyline points="${points}" /></svg>`;
+    }
+
+
     renderProjectSwitcher(projects) {
         this.appContainer.innerHTML = `
             <div class="container vh-100 d-flex flex-column justify-content-center">
@@ -237,6 +263,7 @@ class UI {
             'Off Track': 'bg-danger'
         };
         const badgeColor = confidenceColors[confidence];
+        const sparklineHtml = this._createSparklineSVG(kr.history);
 
         return `
         <div class="kr-item">
@@ -245,6 +272,7 @@ class UI {
                 ${kr.title}
             </div>
             <div class="kr-progress-container">
+                ${sparklineHtml}
                 <small class="text-muted d-flex justify-content-between"><span>${kr.currentValue}</span> <span>of ${kr.targetValue}</span></small>
                 <div class="progress" style="--bs-progress-height: 0.75rem;">
                     <div class="progress-bar bg-info" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"></div>
