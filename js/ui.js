@@ -20,7 +20,7 @@ class UI {
 
     _createSparklineSVG(history) {
         if (!history || history.length < 2) {
-            return '<div class="sparkline-placeholder"></div>';
+            return '<div class="sparkline-placeholder"></div>'; // Return a placeholder for alignment
         }
         const width = 100, height = 20, strokeWidth = 2;
         const values = history.map(h => Number(h.value));
@@ -84,7 +84,8 @@ class UI {
                                 <i class="bi bi-bullseye me-2 fs-4"></i><span class="fs-4 text-nowrap">${project.name}</span>
                             </div><hr>
                             <ul class="nav nav-pills flex-column mb-auto">
-                                <li class="nav-item"><a href="#explorer" class="nav-link text-white active" data-view="explorer-view"><i class="bi bi-columns-gap me-2"></i> OKR Explorer</a></li>
+                                <li class="nav-item"><a href="#dashboard" class="nav-link text-white" data-view="dashboard-view"><i class="bi bi-bar-chart-line-fill me-2"></i> Dashboard</a></li>
+                                <li class="nav-item"><a href="#explorer" class="nav-link text-white" data-view="explorer-view"><i class="bi bi-columns-gap me-2"></i> OKR Explorer</a></li>
                                 <li><a href="#cycles" class="nav-link text-white" data-view="cycles-view"><i class="bi bi-arrow-repeat me-2"></i> Cycle Management</a></li>
                                 <li><a href="#foundation" class="nav-link text-white" data-view="foundation-view"><i class="bi bi-flag-fill me-2"></i> North Star</a></li>
                             </ul><hr>
@@ -106,7 +107,8 @@ class UI {
                             </div>
                         </nav>
                         <div class="p-4 content-scroll-area">
-                            <div id="explorer-view" class="view-container"></div>
+                            <div id="dashboard-view" class="view-container" style="display:none;"></div>
+                            <div id="explorer-view" class="view-container" style="display:none;"></div>
                             <div id="cycles-view" class="view-container" style="display:none;"></div>
                             <div id="foundation-view" class="view-container" style="display:none;"></div>
                         </div>
@@ -125,12 +127,122 @@ class UI {
         if (linkEl) linkEl.classList.add('active');
         const navControls = document.getElementById('nav-controls');
         const viewTitle = document.getElementById('view-title');
+        
         if (navControls) navControls.style.display = viewId === 'explorer-view' ? 'flex' : 'none';
+        
         if (viewTitle) {
+            if (viewId === 'dashboard-view') viewTitle.textContent = 'Dashboard';
             if (viewId === 'explorer-view') viewTitle.textContent = 'OKR Explorer';
             if (viewId === 'cycles-view') viewTitle.textContent = 'Cycle Management';
             if (viewId === 'foundation-view') viewTitle.textContent = 'North Star (Mission & Vision)';
         }
+    }
+
+    renderDashboardView(project) {
+        const view = document.getElementById('dashboard-view');
+        if (!view) return;
+
+        const activeCycle = project.cycles.find(c => c.status === 'Active');
+        if (!activeCycle) {
+            view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
+            return;
+        }
+
+        const objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
+        if (objectivesInCycle.length === 0) {
+            view.innerHTML = '<div class="alert alert-info">No objectives in the current cycle to display on the dashboard.</div>';
+            return;
+        }
+
+        // 1. Overall Progress
+        const totalProgress = objectivesInCycle.reduce((sum, obj) => sum + obj.progress, 0);
+        const overallAverage = Math.round(totalProgress / objectivesInCycle.length);
+
+        // 2. Progress by Team
+        const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
+        const progressByOwner = owners.map(owner => {
+            const ownerObjectives = objectivesInCycle.filter(o => o.ownerId === owner.id);
+            if (ownerObjectives.length === 0) return null;
+            const ownerTotalProgress = ownerObjectives.reduce((sum, obj) => sum + obj.progress, 0);
+            return {
+                name: owner.name,
+                progress: Math.round(ownerTotalProgress / ownerObjectives.length)
+            };
+        }).filter(Boolean);
+
+        // 3. Key Result Health
+        const allKrs = objectivesInCycle.flatMap(o => o.keyResults);
+        const krHealth = {
+            'On Track': allKrs.filter(kr => (kr.confidence || 'On Track') === 'On Track').length,
+            'At Risk': allKrs.filter(kr => kr.confidence === 'At Risk').length,
+            'Off Track': allKrs.filter(kr => kr.confidence === 'Off Track').length,
+            'Total': allKrs.length
+        };
+        const onTrackPercent = krHealth.Total > 0 ? (krHealth['On Track'] / krHealth.Total * 100) : 0;
+        const atRiskPercent = krHealth.Total > 0 ? (krHealth['At Risk'] / krHealth.Total * 100) : 0;
+        const offTrackPercent = krHealth.Total > 0 ? (krHealth['Off Track'] / krHealth.Total * 100) : 0;
+        
+        view.innerHTML = `
+            <div class="row g-4">
+                <div class="col-12">
+                    <div class="card dashboard-card">
+                        <div class="card-body">
+                            <h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5>
+                            <h2 class="display-4">${overallAverage}%</h2>
+                            <div class="progress" style="height: 2rem;">
+                                <div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card dashboard-card">
+                        <div class="card-body">
+                            <h5 class="card-title text-muted">Progress by Owner</h5>
+                            <ul class="list-group list-group-flush">
+                                ${progressByOwner.map(owner => `
+                                <li class="list-group-item bg-transparent">
+                                    <div class="d-flex justify-content-between">
+                                        <span>${owner.name}</span>
+                                        <strong>${owner.progress}%</strong>
+                                    </div>
+                                    <div class="progress mt-1" style="height: 0.5rem;">
+                                        <div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div>
+                                    </div>
+                                </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card dashboard-card">
+                        <div class="card-body">
+                            <h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5>
+                            <div class="d-flex justify-content-around align-items-center text-center mt-4">
+                                <div class="health-stat">
+                                    <div class="stat-value text-success">${krHealth['On Track']}</div>
+                                    <div class="stat-label">On Track</div>
+                                </div>
+                                <div class="health-stat">
+                                    <div class="stat-value text-warning">${krHealth['At Risk']}</div>
+                                    <div class="stat-label">At Risk</div>
+                                </div>
+                                <div class="health-stat">
+                                    <div class="stat-value text-danger">${krHealth['Off Track']}</div>
+                                    <div class="stat-label">Off Track</div>
+                                </div>
+                            </div>
+                            <div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div>
+                                <div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div>
+                                <div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     renderNavControls(project) {
@@ -204,7 +316,6 @@ class UI {
             ? `<div class="obj-notes">${marked.parse(objective.notes)}</div>` 
             : '';
         
-        // Calculate dependencies
         const dependsOnCount = objective.dependsOn?.length || 0;
         const blocksCount = allObjectivesInCycle.filter(o => o.dependsOn?.includes(objective.id)).length;
 
@@ -355,41 +466,14 @@ class UI {
     // --- TEMPLATES ---
     renderNewProjectModal() {
         return `
-        <div class="modal fade" id="newProjectModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content"><form id="new-project-form"><div class="modal-header"><h5 class="modal-title">Create New OKR Project</h5></div><div class="modal-body"><h6>Step 1: Project Details</h6><div class="mb-3"><label for="project-name" class="form-label">Project / Company Name</label><input type="text" class="form-control" id="project-name" required></div><div class="mb-3"><label for="project-mission" class="form-label">Mission Statement</label><textarea class="form-control" id="project-mission" rows="2" required></textarea></div><div class="mb-3"><label for="project-vision" class="form-label">Vision Statement</label><textarea class="form-control" id="project-vision" rows="2" required></textarea></div><hr><h6>Step 2: Define Your Teams</h6><p class="text-muted small">List the teams or departments that will have their own OKRs. Enter one team name per line.</p><div class="mb-3"><textarea class="form-control" id="project-teams" rows="4" placeholder="Team Alpha\nTeam Bravo\nMarketing"></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Create Project</button></div></form></div>
-            </div>
-        </div>`;
+        <div class="modal fade" id="newProjectModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="new-project-form"><div class="modal-header"><h5 class="modal-title">Create New OKR Project</h5></div><div class="modal-body"><h6>Step 1: Project Details</h6><div class="mb-3"><label for="project-name" class="form-label">Project / Company Name</label><input type="text" class="form-control" id="project-name" required></div><div class="mb-3"><label for="project-mission" class="form-label">Mission Statement</label><textarea class="form-control" id="project-mission" rows="2" required></textarea></div><div class="mb-3"><label for="project-vision" class="form-label">Vision Statement</label><textarea class="form-control" id="project-vision" rows="2" required></textarea></div><hr><h6>Step 2: Define Your Teams</h6><p class="text-muted small">List the teams or departments that will have their own OKRs. Enter one team name per line.</p><div class="mb-3"><textarea class="form-control" id="project-teams" rows="4" placeholder="Team Alpha\nTeam Bravo\nMarketing"></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Create Project</button></div></form></div></div></div>`;
     }
     renderObjectiveModal(owners = []) {
         return `
-        <div class="modal fade" id="objectiveModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <form id="objective-form">
-                        <div class="modal-header"><h5 class="modal-title" id="objective-modal-title">Add Objective</h5></div>
-                        <div class="modal-body">
-                            <input type="hidden" id="objective-id">
-                            <div class="mb-3"><label for="objective-title" class="form-label">Objective Title</label><input type="text" class="form-control" id="objective-title" required></div>
-                            <div class="mb-3"><label for="objective-owner" class="form-label">Owner</label><select class="form-select" id="objective-owner" required></select></div>
-                            <div class="mb-3"><label for="objective-notes" class="form-label">Notes (Markdown supported)</label><textarea class="form-control" id="objective-notes" rows="5"></textarea></div>
-                            <div class="mb-3"><label for="objective-depends-on" class="form-label">Depends On (select one or more)</label><select class="form-select" id="objective-depends-on" multiple style="height: 150px;"></select></div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <button type="submit" class="btn btn-primary">Save Objective</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>`;
+        <div class="modal fade" id="objectiveModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="objective-form"><div class="modal-header"><h5 class="modal-title" id="objective-modal-title">Add Objective</h5></div><div class="modal-body"><input type="hidden" id="objective-id"><div class="mb-3"><label for="objective-title" class="form-label">Objective Title</label><input type="text" class="form-control" id="objective-title" required></div><div class="mb-3"><label for="objective-owner" class="form-label">Owner</label><select class="form-select" id="objective-owner" required></select></div><div class="mb-3"><label for="objective-notes" class="form-label">Notes (Markdown supported)</label><textarea class="form-control" id="objective-notes" rows="5"></textarea></div><div class="mb-3"><label for="objective-depends-on" class="form-label">Depends On (select one or more)</label><select class="form-select" id="objective-depends-on" multiple style="height: 150px;"></select></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save Objective</button></div></form></div></div></div>`;
     }
     renderKeyResultModal() {
         return `
-        <div class="modal fade" id="keyResultModal" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content"><form id="kr-form"><div class="modal-header"><h5 class="modal-title" id="kr-modal-title">Add Key Result</h5></div><div class="modal-body"><input type="hidden" id="kr-objective-id"><input type="hidden" id="kr-id"><div class="mb-3"><label for="kr-title" class="form-label">Key Result Title</label><input type="text" class="form-control" id="kr-title" required></div><div class="row"><div class="col-md-3"><label for="kr-start-value" class="form-label">Start Value</label><input type="number" class="form-control" id="kr-start-value" value="0" required></div><div class="col-md-3"><label for="kr-current-value" class="form-label">Current Value</label><input type="number" class="form-control" id="kr-current-value" value="0" required></div><div class="col-md-3"><label for="kr-target-value" class="form-label">Target Value</label><input type="number" class="form-control" id="kr-target-value" required></div><div class="col-md-3"><label for="kr-confidence" class="form-label">Confidence</label><select class="form-select" id="kr-confidence" required><option>On Track</option><option>At Risk</option><option>Off Track</option></select></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save Key Result</button></div></form></div>
-            </div>
-        </div>`;
+        <div class="modal fade" id="keyResultModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="kr-form"><div class="modal-header"><h5 class="modal-title" id="kr-modal-title">Add Key Result</h5></div><div class="modal-body"><input type="hidden" id="kr-objective-id"><input type="hidden" id="kr-id"><div class="mb-3"><label for="kr-title" class="form-label">Key Result Title</label><input type="text" class="form-control" id="kr-title" required></div><div class="row"><div class="col-md-3"><label for="kr-start-value" class="form-label">Start Value</label><input type="number" class="form-control" id="kr-start-value" value="0" required></div><div class="col-md-3"><label for="kr-current-value" class="form-label">Current Value</label><input type="number" class="form-control" id="kr-current-value" value="0" required></div><div class="col-md-3"><label for="kr-target-value" class="form-label">Target Value</label><input type="number" class="form-control" id="kr-target-value" required></div><div class="col-md-3"><label for="kr-confidence" class="form-label">Confidence</label><select class="form-select" id="kr-confidence" required><option>On Track</option><option>At Risk</option><option>Off Track</option></select></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save Key Result</button></div></form></div></div></div>`;
     }
 }
