@@ -132,3 +132,8 @@ body {
     text-transform: uppercase;
     color: var(--bs-secondary-color);
 }
+
+/* Toast Container Style */
+#toast-container {
+    z-index: 1100; /* Ensure it's above modals (Bootstrap modal z-index is 1055) */
+}
