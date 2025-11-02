@@ -60,15 +60,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function loadProject(project) {
+        if (!window.location.hash || window.location.hash === '#') {
+            window.location.hash = '#dashboard';
+        }
         ui.renderMainLayout(project);
 
         const router = () => {
-            project = store.getCurrentProject(); // FIX #1: Refresh project data on every route change/re-render.
-            if (!project) { main(); return; } // If project was deleted, go back to switcher.
+            project = store.getCurrentProject();
+            if (!project) { main(); return; }
 
-            const hash = window.location.hash || '#explorer';
+            const hash = window.location.hash || '#dashboard';
             ui.showView(hash.substring(1) + '-view');
             switch(hash) {
+                case '#dashboard': ui.renderDashboardView(project); break;
                 case '#explorer': ui.renderExplorerView(project, document.getElementById('search-input').value); break;
                 case '#cycles': ui.renderCyclesView(project); break;
                 case '#foundation': ui.renderFoundationView(project); break;
@@ -76,14 +80,18 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         addListener(window, 'hashchange', router);
-        addListener(document.getElementById('back-to-projects'), 'click', () => { store.setCurrentProjectId(null); main(); });
+        addListener(document.getElementById('back-to-projects'), 'click', () => { 
+            window.location.hash = '';
+            store.setCurrentProjectId(null); 
+            main(); 
+        });
         
         addListener(document.getElementById('search-input'), 'input', e => ui.renderExplorerView(project, e.target.value));
         addListener(document.getElementById('cycle-selector-list'), 'click', e => {
             if (e.target.dataset.cycleId) {
                 e.preventDefault();
                 store.setActiveCycle(e.target.dataset.cycleId);
-                router(); // Use router to refresh the view with fresh data.
+                router();
                 ui.renderNavControls(store.getCurrentProject());
             }
         });
@@ -107,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cycleId = e.target.closest('.delete-cycle-btn').dataset.cycleId;
                  if(confirm('Are you sure you want to delete this cycle? All objectives within it will also be deleted.')) {
                     store.deleteCycle(cycleId);
-                    router(); // Use router to refresh cycle view
+                    router();
                  }
             }
             if (e.target.closest('.set-active-cycle-btn')) {
@@ -128,10 +136,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const selectedOptions = document.getElementById('objective-depends-on').selectedOptions;
                 const dependsOn = Array.from(selectedOptions).map(opt => opt.value);
                 const data = {
-                    title: document.getElementById('objective-title').value,
-                    ownerId: document.getElementById('objective-owner').value,
-                    notes: document.getElementById('objective-notes').value,
-                    dependsOn: dependsOn
+                    title: document.getElementById('objective-title').value, ownerId: document.getElementById('objective-owner').value,
+                    notes: document.getElementById('objective-notes').value, dependsOn: dependsOn
                 };
                 if(id) store.updateObjective(id, data); else store.addObjective(data);
                 ui.hideModal('objectiveModal');
@@ -141,10 +147,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const objId = document.getElementById('kr-objective-id').value;
                 const krId = document.getElementById('kr-id').value;
                 const data = {
-                    title: document.getElementById('kr-title').value,
-                    startValue: document.getElementById('kr-start-value').value,
-                    currentValue: document.getElementById('kr-current-value').value,
-                    targetValue: document.getElementById('kr-target-value').value,
+                    title: document.getElementById('kr-title').value, startValue: document.getElementById('kr-start-value').value,
+                    currentValue: document.getElementById('kr-current-value').value, targetValue: document.getElementById('kr-target-value').value,
                     confidence: document.getElementById('kr-confidence').value
                 };
                 if (krId) store.updateKeyResult(objId, krId, data); else store.addKeyResult(objId, data);
@@ -155,13 +159,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = { name: document.getElementById('cycle-name').value, startDate: document.getElementById('cycle-start-date').value, endDate: document.getElementById('cycle-end-date').value };
                 store.addCycle(data);
                 e.target.reset();
-                router(); // Use router to refresh cycle view
+                router();
                 ui.renderNavControls(store.getCurrentProject());
             }
             if (e.target.id === 'foundation-form') {
                 const data = { mission: document.getElementById('foundation-mission').value, vision: document.getElementById('foundation-vision').value };
                 store.updateFoundation(data);
-                router(); // Use router to refresh foundation view
+                router();
             }
         });
 
@@ -171,24 +175,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!trigger) return;
 
             if (modal.id === 'objectiveModal') {
-                project = store.getCurrentProject(); // FIX #2: Refresh project data right before populating the modal.
-                
+                project = store.getCurrentProject();
                 const form = document.getElementById('objective-form');
                 form.reset();
                 document.getElementById('objective-id').value = '';
                 document.getElementById('objective-notes').value = '';
-
                 const ownerSelect = document.getElementById('objective-owner');
                 const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
                 ownerSelect.innerHTML = owners.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
-                
                 const objId = trigger.dataset.objectiveId;
-                
                 const activeCycle = project.cycles.find(c => c.status === 'Active');
                 const possibleDependencies = project.objectives.filter(o => o.cycleId === activeCycle?.id && o.id !== objId);
                 const dependsOnSelect = document.getElementById('objective-depends-on');
                 dependsOnSelect.innerHTML = possibleDependencies.map(o => `<option value="${o.id}">${o.title}</option>`).join('');
-
                 if (objId) {
                     document.getElementById('objective-modal-title').textContent = 'Edit Objective';
                     const obj = project.objectives.find(o => o.id === objId);
@@ -199,9 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.getElementById('objective-notes').value = obj.notes || '';
                         if (obj.dependsOn) {
                             Array.from(dependsOnSelect.options).forEach(opt => {
-                                if (obj.dependsOn.includes(opt.value)) {
-                                    opt.selected = true;
-                                }
+                                if (obj.dependsOn.includes(opt.value)) opt.selected = true;
                             });
                         }
                     }
@@ -211,19 +208,16 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (modal.id === 'keyResultModal') {
-                project = store.getCurrentProject(); // Good practice to refresh here too.
-
+                project = store.getCurrentProject();
                 const form = document.getElementById('kr-form');
                 form.reset();
                 document.getElementById('kr-id').value = '';
                 document.getElementById('kr-start-value').value = 0;
                 document.getElementById('kr-confidence').value = 'On Track';
-
                 const objId = trigger.dataset.objectiveId;
                 document.getElementById('kr-objective-id').value = objId;
                 const krId = trigger.dataset.krId;
                 const objective = project.objectives.find(o => o.id === objId);
-                
                 if (krId && objective) {
                     document.getElementById('kr-modal-title').textContent = 'Edit Key Result';
                     const kr = objective.keyResults.find(k => k.id === krId);
