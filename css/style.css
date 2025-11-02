@@ -116,3 +116,19 @@ body {
     stroke-linejoin: round;
     stroke-linecap: round;
 }
+
+/* Dashboard Styles */
+.dashboard-card {
+    background-color: #343a40;
+    border: 1px solid #495057;
+}
+
+.health-stat .stat-value {
+    font-size: 2.5rem;
+    font-weight: 300;
+}
+.health-stat .stat-label {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
