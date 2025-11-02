@@ -5,6 +5,42 @@ class UI {
         this.modals = {};
     }
 
+    showToast(message, type = 'success') {
+        const toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) return;
+
+        const toastId = `toast-${Date.now()}`;
+        const toastColorClasses = {
+            success: 'bg-success text-white',
+            danger: 'bg-danger text-white',
+            warning: 'bg-warning text-dark',
+            info: 'bg-info text-white'
+        };
+        const toastClass = toastColorClasses[type] || 'bg-secondary text-white';
+
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center ${toastClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `;
+        
+        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+
+        const toastEl = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+        
+        toastEl.addEventListener('hidden.bs.toast', () => {
+            toastEl.remove();
+        });
+
+        toast.show();
+    }
+
     _getOrInitModal(id) {
         if (!this.modals[id]) {
             const modalEl = document.getElementById(id);
@@ -15,12 +51,11 @@ class UI {
         return this.modals[id];
     }
     
-    showModal(id) { this._getOrInitModal(id)?.show(); }
     hideModal(id) { this._getOrInitModal(id)?.hide(); }
 
     _createSparklineSVG(history) {
         if (!history || history.length < 2) {
-            return '<div class="sparkline-placeholder"></div>'; // Return a placeholder for alignment
+            return '<div class="sparkline-placeholder"></div>';
         }
         const width = 100, height = 20, strokeWidth = 2;
         const values = history.map(h => Number(h.value));
@@ -154,11 +189,9 @@ class UI {
             return;
         }
 
-        // 1. Overall Progress
         const totalProgress = objectivesInCycle.reduce((sum, obj) => sum + obj.progress, 0);
-        const overallAverage = Math.round(totalProgress / objectivesInCycle.length);
+        const overallAverage = objectivesInCycle.length > 0 ? Math.round(totalProgress / objectivesInCycle.length) : 0;
 
-        // 2. Progress by Team
         const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
         const progressByOwner = owners.map(owner => {
             const ownerObjectives = objectivesInCycle.filter(o => o.ownerId === owner.id);
@@ -170,7 +203,6 @@ class UI {
             };
         }).filter(Boolean);
 
-        // 3. Key Result Health
         const allKrs = objectivesInCycle.flatMap(o => o.keyResults);
         const krHealth = {
             'On Track': allKrs.filter(kr => (kr.confidence || 'On Track') === 'On Track').length,
@@ -273,7 +305,6 @@ class UI {
         }
         let objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
         let objectivesToRender = objectivesInCycle;
-
         if (searchTerm) {
             const lowercasedTerm = searchTerm.toLowerCase();
             objectivesToRender = objectivesInCycle.filter(o => 
@@ -282,15 +313,12 @@ class UI {
                 o.keyResults.some(kr => kr.title.toLowerCase().includes(lowercasedTerm))
             );
         }
-
         const companyObjectives = objectivesToRender.filter(o => o.ownerId === 'company');
         let html = this.renderObjectiveGroup(project.companyName, companyObjectives, project, objectivesInCycle);
-        
         project.teams.forEach(team => {
             const teamObjectives = objectivesToRender.filter(o => o.ownerId === team.id);
             html += this.renderObjectiveGroup(team.name, teamObjectives, project, objectivesInCycle);
         });
-        
         if (!html && searchTerm) {
             view.innerHTML = `<div class="text-center p-5"><h3>No results for "${searchTerm}".</h3></div>`;
         } else if (!html) {
@@ -315,13 +343,10 @@ class UI {
         const notesHtml = (objective.notes && objective.notes.trim() !== '') 
             ? `<div class="obj-notes">${marked.parse(objective.notes)}</div>` 
             : '';
-        
         const dependsOnCount = objective.dependsOn?.length || 0;
         const blocksCount = allObjectivesInCycle.filter(o => o.dependsOn?.includes(objective.id)).length;
-
         const dependsOnBadge = dependsOnCount > 0 ? `<span class="badge bg-secondary ms-2"><i class="bi bi-arrow-down"></i> Depends on ${dependsOnCount}</span>` : '';
         const blocksBadge = blocksCount > 0 ? `<span class="badge bg-warning text-dark ms-2"><i class="bi bi-arrow-up"></i> Blocks ${blocksCount}</span>` : '';
-
         return `
         <div class="card okr-card" id="obj-${objective.id}">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -358,7 +383,6 @@ class UI {
         const confidenceColors = { 'On Track': 'bg-success', 'At Risk': 'bg-warning', 'Off Track': 'bg-danger' };
         const badgeColor = confidenceColors[confidence];
         const sparklineHtml = this._createSparklineSVG(kr.history);
-
         return `
         <div class="kr-item">
             <div class="kr-title">
@@ -383,47 +407,14 @@ class UI {
         const view = document.getElementById('cycles-view');
         if (!view) return;
         view.innerHTML = `
-        <div class="row g-4">
-            <div class="col-md-5">
-                <div class="card">
-                    <div class="card-header"><h4>Add New Cycle</h4></div>
-                    <div class="card-body">
-                        <form id="new-cycle-form">
-                            <div class="mb-3"><label for="cycle-name" class="form-label">Cycle Name</label><input type="text" class="form-control" id="cycle-name" placeholder="e.g., Q1 2024" required></div>
-                            <div class="mb-3"><label for="cycle-start-date" class="form-label">Start Date</label><input type="date" class="form-control" id="cycle-start-date" required></div>
-                            <div class="mb-3"><label for="cycle-end-date" class="form-label">End Date</label><input type="date" class="form-control" id="cycle-end-date" required></div>
-                            <button type="submit" class="btn btn-primary">Add Cycle</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-7">
-                <div class="card">
-                    <div class="card-header"><h4>Existing Cycles</h4></div>
-                    <div class="card-body">
-                        <ul class="list-group" id="cycle-list">
-                            ${project.cycles.length > 0 ? project.cycles.map(c => this.renderCycleListItem(c, project.cycles.length)).join('') : '<li class="list-group-item">No cycles created yet.</li>'}
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>`;
+        <div class="row g-4"><div class="col-md-5"><div class="card"><div class="card-header"><h4>Add New Cycle</h4></div><div class="card-body"><form id="new-cycle-form"><div class="mb-3"><label for="cycle-name" class="form-label">Cycle Name</label><input type="text" class="form-control" id="cycle-name" placeholder="e.g., Q1 2024" required></div><div class="mb-3"><label for="cycle-start-date" class="form-label">Start Date</label><input type="date" class="form-control" id="cycle-start-date" required></div><div class="mb-3"><label for="cycle-end-date" class="form-label">End Date</label><input type="date" class="form-control" id="cycle-end-date" required></div><button type="submit" class="btn btn-primary">Add Cycle</button></form></div></div></div><div class="col-md-7"><div class="card"><div class="card-header"><h4>Existing Cycles</h4></div><div class="card-body"><ul class="list-group" id="cycle-list">${project.cycles.length > 0 ? project.cycles.map(c => this.renderCycleListItem(c, project.cycles.length)).join('') : '<li class="list-group-item">No cycles created yet.</li>'}</ul></div></div></div></div>`;
     }
     
     renderCycleListItem(cycle, totalCycles) {
         const isActive = cycle.status === 'Active';
         const deleteDisabled = isActive || totalCycles <= 1;
         return `
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                    <h6 class="mb-0">${cycle.name} ${isActive ? '<span class="badge bg-success ms-2">Active</span>' : ''}</h6>
-                    <small class="text-muted">${cycle.startDate} to ${cycle.endDate}</small>
-                </div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-success set-active-cycle-btn" data-cycle-id="${cycle.id}" ${isActive ? 'disabled' : ''}>Set Active</button>
-                    <button class="btn btn-sm btn-outline-danger delete-cycle-btn" data-cycle-id="${cycle.id}" ${deleteDisabled ? 'disabled' : ''} title="${deleteDisabled ? 'Cannot delete the active or only cycle' : 'Delete cycle'}"><i class="bi bi-trash"></i></button>
-                </div>
-            </li>`;
+            <li class="list-group-item d-flex justify-content-between align-items-center"><div><h6 class="mb-0">${cycle.name} ${isActive ? '<span class="badge bg-success ms-2">Active</span>' : ''}</h6><small class="text-muted">${cycle.startDate} to ${cycle.endDate}</small></div><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-success set-active-cycle-btn" data-cycle-id="${cycle.id}" ${isActive ? 'disabled' : ''}>Set Active</button><button class="btn btn-sm btn-outline-danger delete-cycle-btn" data-cycle-id="${cycle.id}" ${deleteDisabled ? 'disabled' : ''} title="${deleteDisabled ? 'Cannot delete the active or only cycle' : 'Delete cycle'}"><i class="bi bi-trash"></i></button></div></li>`;
     }
 
     renderFoundationView(project, isEditing = false) {
@@ -432,34 +423,9 @@ class UI {
         const mission = project.foundation.mission || '';
         const vision = project.foundation.vision || '';
         const displayView = `
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4>
-                    <button class="btn btn-outline-secondary" id="edit-foundation-btn"><i class="bi bi-pencil"></i> Edit</button>
-                </div>
-                <div class="card-body"><p class="fs-5">${mission.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p></div>
-            </div>
-            <div class="card">
-                <div class="card-header"><h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4></div>
-                <div class="card-body"><p class="fs-5">${vision.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p></div>
-            </div>`;
+            <div class="card mb-4"><div class="card-header d-flex justify-content-between align-items-center"><h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4><button class="btn btn-outline-secondary" id="edit-foundation-btn"><i class="bi bi-pencil"></i> Edit</button></div><div class="card-body"><p class="fs-5">${mission.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p></div></div><div class="card"><div class="card-header"><h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4></div><div class="card-body"><p class="fs-5">${vision.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p></div></div>`;
         const editView = `
-            <form id="foundation-form">
-                <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4>
-                    </div>
-                    <div class="card-body"><textarea class="form-control" id="foundation-mission" rows="4" required>${mission}</textarea></div>
-                </div>
-                <div class="card mb-4">
-                    <div class="card-header"><h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4></div>
-                    <div class="card-body"><textarea class="form-control" id="foundation-vision" rows="4" required>${vision}</textarea></div>
-                </div>
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
-                    <button type="button" class="btn btn-secondary" id="cancel-edit-foundation-btn">Cancel</button>
-                </div>
-            </form>`;
+            <form id="foundation-form"><div class="card mb-4"><div class="card-header d-flex justify-content-between align-items-center"><h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4></div><div class="card-body"><textarea class="form-control" id="foundation-mission" rows="4" required>${mission}</textarea></div></div><div class="card mb-4"><div class="card-header"><h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4></div><div class="card-body"><textarea class="form-control" id="foundation-vision" rows="4" required>${vision}</textarea></div></div><div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Save Changes</button><button type="button" class="btn btn-secondary" id="cancel-edit-foundation-btn">Cancel</button></div></form>`;
         view.innerHTML = isEditing ? editView : displayView;
     }
     
