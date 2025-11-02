@@ -85,7 +85,7 @@ class Store {
     addObjective(data) { this._updateCurrentProject(p => {
         const activeCycle = p.cycles.find(c => c.status === 'Active');
         if (!activeCycle) return;
-        p.objectives.push({ id: `obj-${Date.now()}`, cycleId: activeCycle.id, ...data, progress: 0, keyResults: [], notes: data.notes || '' });
+        p.objectives.push({ id: `obj-${Date.now()}`, cycleId: activeCycle.id, ...data, progress: 0, keyResults: [], notes: data.notes || '', dependsOn: data.dependsOn || [] });
     }); }
     updateObjective(id, data) { this._updateCurrentProject(p => {
         const obj = p.objectives.find(o => o.id === id);
@@ -112,19 +112,14 @@ class Store {
         if (obj) {
             const kr = obj.keyResults.find(k => k.id === krId);
             if(kr) {
-                // Initialize history if it doesn't exist (for migrating old data)
                 if (!kr.history) kr.history = [];
-
-                // Check if currentValue has changed before adding a history entry
                 const hasValueChanged = kr.currentValue !== data.currentValue;
-
                 if (hasValueChanged) {
                     kr.history.push({
                         date: new Date().toISOString().split('T')[0],
                         value: data.currentValue
                     });
                 }
-                
                 Object.assign(kr, data);
             }
             obj.progress = this.calculateProgress(obj);
