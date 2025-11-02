@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const projectId = deleteBtn.dataset.projectId, projectName = deleteBtn.dataset.projectName;
                 if (confirm(`Are you sure you want to delete the project "${projectName}"? This action cannot be undone.`)) {
                     store.deleteProject(projectId);
+                    ui.showToast(`Project "${projectName}" deleted.`, 'danger');
                     main();
                 }
                 return;
@@ -46,8 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         addListener(document.getElementById('new-project-form'), 'submit', e => {
             e.preventDefault();
+            const projectName = document.getElementById('project-name').value;
             const initialData = {
-                projectName: document.getElementById('project-name').value,
+                projectName: projectName,
                 mission: document.getElementById('project-mission').value,
                 vision: document.getElementById('project-vision').value,
                 teams: document.getElementById('project-teams').value.split('\n').filter(t => t.trim() !== '')
@@ -55,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const newProject = store.createNewProject(initialData);
             store.setCurrentProjectId(newProject.id);
             ui.hideModal('newProjectModal');
+            ui.showToast(`Project "${projectName}" created successfully!`);
             main();
         });
     }
@@ -68,7 +71,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const router = () => {
             project = store.getCurrentProject();
             if (!project) { main(); return; }
-
             const hash = window.location.hash || '#dashboard';
             ui.showView(hash.substring(1) + '-view');
             switch(hash) {
@@ -81,9 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         addListener(window, 'hashchange', router);
         addListener(document.getElementById('back-to-projects'), 'click', () => { 
-            window.location.hash = '';
-            store.setCurrentProjectId(null); 
-            main(); 
+            window.location.hash = ''; store.setCurrentProjectId(null); main(); 
         });
         
         addListener(document.getElementById('search-input'), 'input', e => ui.renderExplorerView(project, e.target.value));
@@ -91,6 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.dataset.cycleId) {
                 e.preventDefault();
                 store.setActiveCycle(e.target.dataset.cycleId);
+                const activeCycle = store.getCurrentProject().cycles.find(c => c.id === e.target.dataset.cycleId);
+                ui.showToast(`Active cycle set to "${activeCycle.name}".`, 'info');
                 router();
                 ui.renderNavControls(store.getCurrentProject());
             }
@@ -101,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const objId = e.target.closest('.delete-obj-btn').dataset.objectiveId;
                 if(confirm('Are you sure you want to delete this objective and all its key results?')) {
                     store.deleteObjective(objId);
+                    ui.showToast('Objective deleted.', 'danger');
                     router();
                 }
             }
@@ -108,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { objectiveId, krId } = e.target.closest('.delete-kr-btn').dataset;
                 if(confirm('Are you sure you want to delete this key result?')) {
                     store.deleteKeyResult(objectiveId, krId);
+                    ui.showToast('Key Result deleted.', 'danger');
                     router();
                 }
             }
@@ -115,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cycleId = e.target.closest('.delete-cycle-btn').dataset.cycleId;
                  if(confirm('Are you sure you want to delete this cycle? All objectives within it will also be deleted.')) {
                     store.deleteCycle(cycleId);
+                    ui.showToast('Cycle deleted.', 'danger');
                     router();
                  }
             }
@@ -122,6 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cycleId = e.target.closest('.set-active-cycle-btn').dataset.cycleId;
                 store.setActiveCycle(cycleId);
                 project = store.getCurrentProject();
+                const activeCycle = project.cycles.find(c => c.id === cycleId);
+                ui.showToast(`Active cycle set to "${activeCycle.name}".`, 'info');
                 ui.renderCyclesView(project);
                 ui.renderNavControls(project);
             }
@@ -139,7 +146,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     title: document.getElementById('objective-title').value, ownerId: document.getElementById('objective-owner').value,
                     notes: document.getElementById('objective-notes').value, dependsOn: dependsOn
                 };
-                if(id) store.updateObjective(id, data); else store.addObjective(data);
+                if(id) {
+                    store.updateObjective(id, data);
+                    ui.showToast('Objective updated successfully!');
+                } else {
+                    store.addObjective(data);
+                    ui.showToast('Objective added successfully!');
+                }
                 ui.hideModal('objectiveModal');
                 router();
             }
@@ -151,13 +164,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentValue: document.getElementById('kr-current-value').value, targetValue: document.getElementById('kr-target-value').value,
                     confidence: document.getElementById('kr-confidence').value
                 };
-                if (krId) store.updateKeyResult(objId, krId, data); else store.addKeyResult(objId, data);
+                if (krId) {
+                    store.updateKeyResult(objId, krId, data);
+                    ui.showToast('Key Result updated successfully!');
+                } else {
+                    store.addKeyResult(objId, data);
+                    ui.showToast('Key Result added successfully!');
+                }
                 ui.hideModal('keyResultModal');
                 router();
             }
             if (e.target.id === 'new-cycle-form') {
                 const data = { name: document.getElementById('cycle-name').value, startDate: document.getElementById('cycle-start-date').value, endDate: document.getElementById('cycle-end-date').value };
                 store.addCycle(data);
+                ui.showToast(`Cycle "${data.name}" added successfully.`);
                 e.target.reset();
                 router();
                 ui.renderNavControls(store.getCurrentProject());
@@ -165,6 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.id === 'foundation-form') {
                 const data = { mission: document.getElementById('foundation-mission').value, vision: document.getElementById('foundation-vision').value };
                 store.updateFoundation(data);
+                ui.showToast('Foundation statements updated.');
                 router();
             }
         });
