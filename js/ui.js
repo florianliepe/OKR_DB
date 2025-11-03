@@ -8,44 +8,25 @@ class UI {
     showToast(message, type = 'success') {
         const toastContainer = document.getElementById('toast-container');
         if (!toastContainer) return;
-
         const toastId = `toast-${Date.now()}`;
-        const toastColorClasses = {
-            success: 'bg-success text-white',
-            danger: 'bg-danger text-white',
-            warning: 'bg-warning text-dark',
-            info: 'bg-info text-white'
-        };
+        const toastColorClasses = { success: 'bg-success text-white', danger: 'bg-danger text-white', warning: 'bg-warning text-dark', info: 'bg-info text-white' };
         const toastClass = toastColorClasses[type] || 'bg-secondary text-white';
-
         const toastHtml = `
             <div id="${toastId}" class="toast align-items-center ${toastClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
                 <div class="d-flex">
-                    <div class="toast-body">
-                        ${message}
-                    </div>
+                    <div class="toast-body">${message}</div>
                     <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                 </div>
-            </div>
-        `;
-        
+            </div>`;
         toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-
         const toastEl = document.getElementById(toastId);
         const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
-        
-        toastEl.addEventListener('hidden.bs.toast', () => {
-            toastEl.remove();
-        });
-
+        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
         toast.show();
     }
 
     _highlightText(text, searchTerm) {
-        if (!searchTerm || !text) {
-            return text;
-        }
-        // Escape special regex characters from the search term
+        if (!searchTerm || !text) return text;
         const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(`(${escapedTerm})`, 'gi');
         return text.replace(regex, `<mark>$1</mark>`);
@@ -54,9 +35,7 @@ class UI {
     _getOrInitModal(id) {
         if (!this.modals[id]) {
             const modalEl = document.getElementById(id);
-            if (modalEl) {
-                this.modals[id] = new bootstrap.Modal(modalEl);
-            }
+            if (modalEl) this.modals[id] = new bootstrap.Modal(modalEl);
         }
         return this.modals[id];
     }
@@ -64,9 +43,7 @@ class UI {
     hideModal(id) { this._getOrInitModal(id)?.hide(); }
 
     _createSparklineSVG(history) {
-        if (!history || history.length < 2) {
-            return '<div class="sparkline-placeholder"></div>';
-        }
+        if (!history || history.length < 2) return '<div class="sparkline-placeholder"></div>';
         const width = 100, height = 20, strokeWidth = 2;
         const values = history.map(h => Number(h.value));
         const minY = Math.min(...values), maxY = Math.max(...values);
@@ -87,7 +64,6 @@ class UI {
                     <p class="lead">Select an OKR Project or create a new one.</p>
                 </div>
                 <div class="row g-4 justify-content-center" id="project-list">
-                    ${projects.map(p => this.renderProjectCard(p)).join('')}
                     <div class="col-12 col-md-6 col-lg-4">
                         <div class="card project-card text-center h-100 bg-body-tertiary" id="create-new-project-card">
                             <div class="card-body d-flex flex-column justify-content-center">
@@ -96,6 +72,16 @@ class UI {
                             </div>
                         </div>
                     </div>
+                    <div class="col-12 col-md-6 col-lg-4">
+                        <label for="import-project-input" class="card project-card text-center h-100 bg-body-tertiary" style="cursor: pointer;">
+                            <div class="card-body d-flex flex-column justify-content-center">
+                                <i class="bi bi-upload fs-1"></i>
+                                <h5 class="card-title mt-3">Import Project</h5>
+                                <input type="file" id="import-project-input" accept=".json" style="display: none;">
+                            </div>
+                        </label>
+                    </div>
+                    ${projects.map(p => this.renderProjectCard(p)).join('')}
                 </div>
             </div>`;
         this.modalContainer.innerHTML = this.renderNewProjectModal();
@@ -135,16 +121,19 @@ class UI {
                                 <li><a href="#foundation" class="nav-link text-white" data-view="foundation-view"><i class="bi bi-flag-fill me-2"></i> North Star</a></li>
                             </ul><hr>
                             <div class="d-flex flex-column gap-2">
+                                <button class="btn btn-sm btn-outline-secondary" id="export-project-btn"><i class="bi bi-download me-2"></i> Export Project</button>
                                 <button class="btn btn-sm btn-outline-light" id="back-to-projects"><i class="bi bi-box-arrow-left me-2"></i>All Projects</button>
                             </div>
                         </nav>
                     </div>
                     <div class="col p-0 d-flex flex-column main-content-col">
                         <nav class="navbar top-bar">
-                            <div class="container-fluid"><span class="navbar-brand mb-0 h1" id="view-title"></span>
+                            <div class="container-fluid">
+                                <span class="navbar-brand mb-0 h1" id="view-title"></span>
                                 <div class="d-flex align-items-center gap-2" id="nav-controls">
                                     <input class="form-control" type="search" id="search-input" placeholder="Search objectives..." style="width: 250px;">
-                                    <div class="dropdown"><button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" id="cycle-selector-btn" disabled></button>
+                                    <div class="dropdown">
+                                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" id="cycle-selector-btn" disabled></button>
                                         <ul class="dropdown-menu dropdown-menu-end" id="cycle-selector-list"></ul>
                                     </div>
                                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#objectiveModal" id="add-objective-btn" disabled><i class="bi bi-plus-circle"></i> Add Objective</button>
@@ -172,9 +161,7 @@ class UI {
         if (linkEl) linkEl.classList.add('active');
         const navControls = document.getElementById('nav-controls');
         const viewTitle = document.getElementById('view-title');
-        
         if (navControls) navControls.style.display = viewId === 'explorer-view' ? 'flex' : 'none';
-        
         if (viewTitle) {
             if (viewId === 'dashboard-view') viewTitle.textContent = 'Dashboard';
             if (viewId === 'explorer-view') viewTitle.textContent = 'OKR Explorer';
@@ -187,15 +174,9 @@ class UI {
         const view = document.getElementById('dashboard-view');
         if (!view) return;
         const activeCycle = project.cycles.find(c => c.status === 'Active');
-        if (!activeCycle) {
-            view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
-            return;
-        }
+        if (!activeCycle) { view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>'; return; }
         const objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
-        if (objectivesInCycle.length === 0) {
-            view.innerHTML = '<div class="alert alert-info">No objectives in the current cycle to display on the dashboard.</div>';
-            return;
-        }
+        if (objectivesInCycle.length === 0) { view.innerHTML = '<div class="alert alert-info">No objectives in the current cycle to display on the dashboard.</div>'; return; }
         const totalProgress = objectivesInCycle.reduce((sum, obj) => sum + obj.progress, 0);
         const overallAverage = objectivesInCycle.length > 0 ? Math.round(totalProgress / objectivesInCycle.length) : 0;
         const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
@@ -203,10 +184,7 @@ class UI {
             const ownerObjectives = objectivesInCycle.filter(o => o.ownerId === owner.id);
             if (ownerObjectives.length === 0) return null;
             const ownerTotalProgress = ownerObjectives.reduce((sum, obj) => sum + obj.progress, 0);
-            return {
-                name: owner.name,
-                progress: Math.round(ownerTotalProgress / ownerObjectives.length)
-            };
+            return { name: owner.name, progress: Math.round(ownerTotalProgress / ownerObjectives.length) };
         }).filter(Boolean);
         const allKrs = objectivesInCycle.flatMap(o => o.keyResults);
         const krHealth = {
@@ -219,7 +197,66 @@ class UI {
         const atRiskPercent = krHealth.Total > 0 ? (krHealth['At Risk'] / krHealth.Total * 100) : 0;
         const offTrackPercent = krHealth.Total > 0 ? (krHealth['Off Track'] / krHealth.Total * 100) : 0;
         view.innerHTML = `
-            <div class="row g-4"><div class="col-12"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5><h2 class="display-4">${overallAverage}%</h2><div class="progress" style="height: 2rem;"><div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div></div></div></div></div><div class="col-md-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Progress by Owner</h5><ul class="list-group list-group-flush">${progressByOwner.map(owner => `<li class="list-group-item bg-transparent"><div class="d-flex justify-content-between"><span>${owner.name}</span><strong>${owner.progress}%</strong></div><div class="progress mt-1" style="height: 0.5rem;"><div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div></div></li>`).join('')}</ul></div></div></div><div class="col-md-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5><div class="d-flex justify-content-around align-items-center text-center mt-4"><div class="health-stat"><div class="stat-value text-success">${krHealth['On Track']}</div><div class="stat-label">On Track</div></div><div class="health-stat"><div class="stat-value text-warning">${krHealth['At Risk']}</div><div class="stat-label">At Risk</div></div><div class="health-stat"><div class="stat-value text-danger">${krHealth['Off Track']}</div><div class="stat-label">Off Track</div></div></div><div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;"><div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div><div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div><div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div></div></div></div></div></div>`;
+            <div class="row g-4">
+                <div class="col-12">
+                    <div class="card dashboard-card">
+                        <div class="card-body">
+                            <h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5>
+                            <h2 class="display-4">${overallAverage}%</h2>
+                            <div class="progress" style="height: 2rem;">
+                                <div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card dashboard-card">
+                        <div class="card-body">
+                            <h5 class="card-title text-muted">Progress by Owner</h5>
+                            <ul class="list-group list-group-flush">
+                                ${progressByOwner.map(owner => `
+                                <li class="list-group-item bg-transparent">
+                                    <div class="d-flex justify-content-between">
+                                        <span>${owner.name}</span>
+                                        <strong>${owner.progress}%</strong>
+                                    </div>
+                                    <div class="progress mt-1" style="height: 0.5rem;">
+                                        <div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div>
+                                    </div>
+                                </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card dashboard-card">
+                        <div class="card-body">
+                            <h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5>
+                            <div class="d-flex justify-content-around align-items-center text-center mt-4">
+                                <div class="health-stat">
+                                    <div class="stat-value text-success">${krHealth['On Track']}</div>
+                                    <div class="stat-label">On Track</div>
+                                </div>
+                                <div class="health-stat">
+                                    <div class="stat-value text-warning">${krHealth['At Risk']}</div>
+                                    <div class="stat-label">At Risk</div>
+                                </div>
+                                <div class="health-stat">
+                                    <div class="stat-value text-danger">${krHealth['Off Track']}</div>
+                                    <div class="stat-label">Off Track</div>
+                                </div>
+                            </div>
+                            <div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div>
+                                <div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div>
+                                <div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     renderNavControls(project) {
@@ -244,19 +281,12 @@ class UI {
         const view = document.getElementById('explorer-view');
         if (!view) return;
         const activeCycle = project.cycles.find(c => c.status === 'Active');
-        if (!activeCycle) {
-            view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
-            return;
-        }
+        if (!activeCycle) { view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>'; return; }
         let objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
         let objectivesToRender = objectivesInCycle;
         if (searchTerm) {
             const lowercasedTerm = searchTerm.toLowerCase();
-            objectivesToRender = objectivesInCycle.filter(o => 
-                o.title.toLowerCase().includes(lowercasedTerm) || 
-                (o.notes && o.notes.toLowerCase().includes(lowercasedTerm)) ||
-                o.keyResults.some(kr => kr.title.toLowerCase().includes(lowercasedTerm))
-            );
+            objectivesToRender = objectivesInCycle.filter(o => o.title.toLowerCase().includes(lowercasedTerm) || (o.notes && o.notes.toLowerCase().includes(lowercasedTerm)) || o.keyResults.some(kr => kr.title.toLowerCase().includes(lowercasedTerm)));
         }
         const companyObjectives = objectivesToRender.filter(o => o.ownerId === 'company');
         let html = this.renderObjectiveGroup(project.companyName, companyObjectives, project, objectivesInCycle, searchTerm);
@@ -264,13 +294,7 @@ class UI {
             const teamObjectives = objectivesToRender.filter(o => o.ownerId === team.id);
             html += this.renderObjectiveGroup(team.name, teamObjectives, project, objectivesInCycle, searchTerm);
         });
-        if (!html && searchTerm) {
-            view.innerHTML = `<div class="text-center p-5"><h3>No results for "${searchTerm}".</h3></div>`;
-        } else if (!html) {
-            view.innerHTML = '<div class="text-center p-5 bg-body-secondary rounded"><h3>No Objectives for this Cycle</h3><p>Click "Add Objective" to begin.</p></div>';
-        } else {
-            view.innerHTML = html;
-        }
+        if (!html && searchTerm) { view.innerHTML = `<div class="text-center p-5"><h3>No results for "${searchTerm}".</h3></div>`; } else if (!html) { view.innerHTML = '<div class="text-center p-5 bg-body-secondary rounded"><h3>No Objectives for this Cycle</h3><p>Click "Add Objective" to begin.</p></div>'; } else { view.innerHTML = html; }
     }
 
     renderObjectiveGroup(groupName, objectives, project, allObjectivesInCycle, searchTerm) {
@@ -287,43 +311,39 @@ class UI {
     renderOkrCard(objective, project, allObjectivesInCycle, searchTerm) {
         const highlightedTitle = this._highlightText(objective.title, searchTerm);
         const highlightedNotes = this._highlightText(objective.notes, searchTerm);
-
-        const notesHtml = (objective.notes && objective.notes.trim() !== '') 
-            ? `<div class="obj-notes">${marked.parse(highlightedNotes)}</div>` 
-            : '';
-        
+        const notesHtml = (objective.notes && objective.notes.trim() !== '') ? `<div class="obj-notes">${marked.parse(highlightedNotes)}</div>` : '';
         const dependsOnCount = objective.dependsOn?.length || 0;
         const blocksCount = allObjectivesInCycle.filter(o => o.dependsOn?.includes(objective.id)).length;
         const dependsOnBadge = dependsOnCount > 0 ? `<span class="badge bg-secondary ms-2"><i class="bi bi-arrow-down"></i> Depends on ${dependsOnCount}</span>` : '';
         const blocksBadge = blocksCount > 0 ? `<span class="badge bg-warning text-dark ms-2"><i class="bi bi-arrow-up"></i> Blocks ${blocksCount}</span>` : '';
         return `
-        <div class="card okr-card" id="obj-${objective.id}">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <div>
-                    <h5 class="mb-0 d-inline">${highlightedTitle}</h5>
-                    ${dependsOnBadge}
-                    ${blocksBadge}
-                </div>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-secondary edit-obj-btn" data-bs-toggle="modal" data-bs-target="#objectiveModal" data-objective-id="${objective.id}"><i class="bi bi-pencil"></i></button>
-                    <button class="btn btn-sm btn-outline-danger delete-obj-btn" data-objective-id="${objective.id}"><i class="bi bi-trash"></i></button>
-                </div>
-            </div>
-            <div class="card-body">
-                <div class="progress mb-3" style="height: 1.5rem;">
-                    <div class="progress-bar" role="progressbar" style="width: ${objective.progress}%;" aria-valuenow="${objective.progress}" aria-valuemin="0" aria-valuemax="100">
-                        <span class="progress-bar-label">${objective.progress}%</span>
+            <div class="card okr-card" id="obj-${objective.id}">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-0 d-inline">${highlightedTitle}</h5>
+                        ${dependsOnBadge}
+                        ${blocksBadge}
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary edit-obj-btn" data-bs-toggle="modal" data-bs-target="#objectiveModal" data-objective-id="${objective.id}"><i class="bi bi-pencil"></i></button>
+                        <button class="btn btn-sm btn-outline-danger delete-obj-btn" data-objective-id="${objective.id}"><i class="bi bi-trash"></i></button>
                     </div>
                 </div>
-                ${notesHtml}
-                <div class="key-results-list">
-                    ${objective.keyResults.map(kr => this.renderKeyResult(kr, objective.id, searchTerm)).join('')}
+                <div class="card-body">
+                    <div class="progress mb-3" style="height: 1.5rem;">
+                        <div class="progress-bar" role="progressbar" style="width: ${objective.progress}%;" aria-valuenow="${objective.progress}" aria-valuemin="0" aria-valuemax="100">
+                            <span class="progress-bar-label">${objective.progress}%</span>
+                        </div>
+                    </div>
+                    ${notesHtml}
+                    <div class="key-results-list">
+                        ${objective.keyResults.map(kr => this.renderKeyResult(kr, objective.id, searchTerm)).join('')}
+                    </div>
                 </div>
-            </div>
-            <div class="card-footer text-end">
-                <button class="btn btn-sm btn-primary add-kr-btn" data-bs-toggle="modal" data-bs-target="#keyResultModal" data-objective-id="${objective.id}"><i class="bi bi-plus-circle"></i> Add Key Result</button>
-            </div>
-        </div>`;
+                <div class="card-footer text-end">
+                    <button class="btn btn-sm btn-primary add-kr-btn" data-bs-toggle="modal" data-bs-target="#keyResultModal" data-objective-id="${objective.id}"><i class="bi bi-plus-circle"></i> Add Key Result</button>
+                </div>
+            </div>`;
     }
 
     renderKeyResult(kr, objectiveId, searchTerm) {
@@ -334,37 +354,70 @@ class UI {
         const badgeColor = confidenceColors[confidence];
         const sparklineHtml = this._createSparklineSVG(kr.history);
         return `
-        <div class="kr-item">
-            <div class="kr-title">
-                <span class="badge ${badgeColor} me-2">${confidence}</span>
-                ${highlightedKrTitle}
-            </div>
-            <div class="kr-progress-container">
-                ${sparklineHtml}
-                <small class="text-muted d-flex justify-content-between"><span>${kr.currentValue}</span> <span>of ${kr.targetValue}</span></small>
-                <div class="progress" style="--bs-progress-height: 0.75rem;">
-                    <div class="progress-bar bg-info" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"></div>
+            <div class="kr-item">
+                <div class="kr-title">
+                    <span class="badge ${badgeColor} me-2">${confidence}</span>
+                    ${highlightedKrTitle}
                 </div>
-            </div>
-            <div class="kr-actions">
-                <button class="btn btn-sm btn-outline-secondary edit-kr-btn" data-bs-toggle="modal" data-bs-target="#keyResultModal" data-objective-id="${objectiveId}" data-kr-id="${kr.id}"><i class="bi bi-pencil"></i></button>
-                <button class="btn btn-sm btn-outline-danger delete-kr-btn" data-objective-id="${objectiveId}" data-kr-id="${kr.id}"><i class="bi bi-trash"></i></button>
-            </div>
-        </div>`;
+                <div class="kr-progress-container">
+                    ${sparklineHtml}
+                    <small class="text-muted d-flex justify-content-between"><span>${kr.currentValue}</span> <span>of ${kr.targetValue}</span></small>
+                    <div class="progress" style="--bs-progress-height: 0.75rem;">
+                        <div class="progress-bar bg-info" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                </div>
+                <div class="kr-actions">
+                    <button class="btn btn-sm btn-outline-secondary edit-kr-btn" data-bs-toggle="modal" data-bs-target="#keyResultModal" data-objective-id="${objectiveId}" data-kr-id="${kr.id}"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger delete-kr-btn" data-objective-id="${objectiveId}" data-kr-id="${kr.id}"><i class="bi bi-trash"></i></button>
+                </div>
+            </div>`;
     }
 
     renderCyclesView(project) {
         const view = document.getElementById('cycles-view');
         if (!view) return;
         view.innerHTML = `
-        <div class="row g-4"><div class="col-md-5"><div class="card"><div class="card-header"><h4>Add New Cycle</h4></div><div class="card-body"><form id="new-cycle-form"><div class="mb-3"><label for="cycle-name" class="form-label">Cycle Name</label><input type="text" class="form-control" id="cycle-name" placeholder="e.g., Q1 2024" required></div><div class="mb-3"><label for="cycle-start-date" class="form-label">Start Date</label><input type="date" class="form-control" id="cycle-start-date" required></div><div class="mb-3"><label for="cycle-end-date" class="form-label">End Date</label><input type="date" class="form-control" id="cycle-end-date" required></div><button type="submit" class="btn btn-primary">Add Cycle</button></form></div></div></div><div class="col-md-7"><div class="card"><div class="card-header"><h4>Existing Cycles</h4></div><div class="card-body"><ul class="list-group" id="cycle-list">${project.cycles.length > 0 ? project.cycles.map(c => this.renderCycleListItem(c, project.cycles.length)).join('') : '<li class="list-group-item">No cycles created yet.</li>'}</ul></div></div></div></div>`;
+            <div class="row g-4">
+                <div class="col-md-5">
+                    <div class="card">
+                        <div class="card-header"><h4>Add New Cycle</h4></div>
+                        <div class="card-body">
+                            <form id="new-cycle-form">
+                                <div class="mb-3"><label for="cycle-name" class="form-label">Cycle Name</label><input type="text" class="form-control" id="cycle-name" placeholder="e.g., Q1 2024" required></div>
+                                <div class="mb-3"><label for="cycle-start-date" class="form-label">Start Date</label><input type="date" class="form-control" id="cycle-start-date" required></div>
+                                <div class="mb-3"><label for="cycle-end-date" class="form-label">End Date</label><input type="date" class="form-control" id="cycle-end-date" required></div>
+                                <button type="submit" class="btn btn-primary">Add Cycle</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-7">
+                    <div class="card">
+                        <div class="card-header"><h4>Existing Cycles</h4></div>
+                        <div class="card-body">
+                            <ul class="list-group" id="cycle-list">
+                                ${project.cycles.length > 0 ? project.cycles.map(c => this.renderCycleListItem(c, project.cycles.length)).join('') : '<li class="list-group-item">No cycles created yet.</li>'}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
     }
     
     renderCycleListItem(cycle, totalCycles) {
         const isActive = cycle.status === 'Active';
         const deleteDisabled = isActive || totalCycles <= 1;
         return `
-            <li class="list-group-item d-flex justify-content-between align-items-center"><div><h6 class="mb-0">${cycle.name} ${isActive ? '<span class="badge bg-success ms-2">Active</span>' : ''}</h6><small class="text-muted">${cycle.startDate} to ${cycle.endDate}</small></div><div class="d-flex gap-2"><button class="btn btn-sm btn-outline-success set-active-cycle-btn" data-cycle-id="${cycle.id}" ${isActive ? 'disabled' : ''}>Set Active</button><button class="btn btn-sm btn-outline-danger delete-cycle-btn" data-cycle-id="${cycle.id}" ${deleteDisabled ? 'disabled' : ''} title="${deleteDisabled ? 'Cannot delete the active or only cycle' : 'Delete cycle'}"><i class="bi bi-trash"></i></button></div></li>`;
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="mb-0">${cycle.name} ${isActive ? '<span class="badge bg-success ms-2">Active</span>' : ''}</h6>
+                    <small class="text-muted">${cycle.startDate} to ${cycle.endDate}</small>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-success set-active-cycle-btn" data-cycle-id="${cycle.id}" ${isActive ? 'disabled' : ''}>Set Active</button>
+                    <button class="btn btn-sm btn-outline-danger delete-cycle-btn" data-cycle-id="${cycle.id}" ${deleteDisabled ? 'disabled' : ''} title="${deleteDisabled ? 'Cannot delete the active or only cycle' : 'Delete cycle'}"><i class="bi bi-trash"></i></button>
+                </div>
+            </li>`;
     }
 
     renderFoundationView(project, isEditing = false) {
@@ -373,23 +426,124 @@ class UI {
         const mission = project.foundation.mission || '';
         const vision = project.foundation.vision || '';
         const displayView = `
-            <div class="card mb-4"><div class="card-header d-flex justify-content-between align-items-center"><h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4><button class="btn btn-outline-secondary" id="edit-foundation-btn"><i class="bi bi-pencil"></i> Edit</button></div><div class="card-body"><p class="fs-5">${mission.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p></div></div><div class="card"><div class="card-header"><h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4></div><div class="card-body"><p class="fs-5">${vision.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p></div></div>`;
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4>
+                    <button class="btn btn-outline-secondary" id="edit-foundation-btn"><i class="bi bi-pencil"></i> Edit</button>
+                </div>
+                <div class="card-body">
+                    <p class="fs-5">${mission.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4>
+                </div>
+                <div class="card-body">
+                    <p class="fs-5">${vision.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p>
+                </div>
+            </div>`;
         const editView = `
-            <form id="foundation-form"><div class="card mb-4"><div class="card-header d-flex justify-content-between align-items-center"><h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4></div><div class="card-body"><textarea class="form-control" id="foundation-mission" rows="4" required>${mission}</textarea></div></div><div class="card mb-4"><div class="card-header"><h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4></div><div class="card-body"><textarea class="form-control" id="foundation-vision" rows="4" required>${vision}</textarea></div></div><div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Save Changes</button><button type="button" class="btn btn-secondary" id="cancel-edit-foundation-btn">Cancel</button></div></form>`;
+            <form id="foundation-form">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4>
+                    </div>
+                    <div class="card-body">
+                        <textarea class="form-control" id="foundation-mission" rows="4" required>${mission}</textarea>
+                    </div>
+                </div>
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4>
+                    </div>
+                    <div class="card-body">
+                        <textarea class="form-control" id="foundation-vision" rows="4" required>${vision}</textarea>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                    <button type="button" class="btn btn-secondary" id="cancel-edit-foundation-btn">Cancel</button>
+                </div>
+            </form>`;
         view.innerHTML = isEditing ? editView : displayView;
     }
     
     // --- TEMPLATES ---
     renderNewProjectModal() {
         return `
-        <div class="modal fade" id="newProjectModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="new-project-form"><div class="modal-header"><h5 class="modal-title">Create New OKR Project</h5></div><div class="modal-body"><h6>Step 1: Project Details</h6><div class="mb-3"><label for="project-name" class="form-label">Project / Company Name</label><input type="text" class="form-control" id="project-name" required></div><div class="mb-3"><label for="project-mission" class="form-label">Mission Statement</label><textarea class="form-control" id="project-mission" rows="2" required></textarea></div><div class="mb-3"><label for="project-vision" class="form-label">Vision Statement</label><textarea class="form-control" id="project-vision" rows="2" required></textarea></div><hr><h6>Step 2: Define Your Teams</h6><p class="text-muted small">List the teams or departments that will have their own OKRs. Enter one team name per line.</p><div class="mb-3"><textarea class="form-control" id="project-teams" rows="4" placeholder="Team Alpha\nTeam Bravo\nMarketing"></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Create Project</button></div></form></div></div></div>`;
+            <div class="modal fade" id="newProjectModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <form id="new-project-form">
+                            <div class="modal-header"><h5 class="modal-title">Create New OKR Project</h5></div>
+                            <div class="modal-body">
+                                <h6>Step 1: Project Details</h6>
+                                <div class="mb-3"><label for="project-name" class="form-label">Project / Company Name</label><input type="text" class="form-control" id="project-name" required></div>
+                                <div class="mb-3"><label for="project-mission" class="form-label">Mission Statement</label><textarea class="form-control" id="project-mission" rows="2" required></textarea></div>
+                                <div class="mb-3"><label for="project-vision" class="form-label">Vision Statement</label><textarea class="form-control" id="project-vision" rows="2" required></textarea></div>
+                                <hr>
+                                <h6>Step 2: Define Your Teams</h6>
+                                <p class="text-muted small">List the teams or departments that will have their own OKRs. Enter one team name per line.</p>
+                                <div class="mb-3"><textarea class="form-control" id="project-teams" rows="4" placeholder="Team Alpha\nTeam Bravo\nMarketing"></textarea></div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Create Project</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>`;
     }
     renderObjectiveModal(owners = []) {
         return `
-        <div class="modal fade" id="objectiveModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="objective-form"><div class="modal-header"><h5 class="modal-title" id="objective-modal-title">Add Objective</h5></div><div class="modal-body"><input type="hidden" id="objective-id"><div class="mb-3"><label for="objective-title" class="form-label">Objective Title</label><input type="text" class="form-control" id="objective-title" required></div><div class="mb-3"><label for="objective-owner" class="form-label">Owner</label><select class="form-select" id="objective-owner" required></select></div><div class="mb-3"><label for="objective-notes" class="form-label">Notes (Markdown supported)</label><textarea class="form-control" id="objective-notes" rows="5"></textarea></div><div class="mb-3"><label for="objective-depends-on" class="form-label">Depends On (select one or more)</label><select class="form-select" id="objective-depends-on" multiple style="height: 150px;"></select></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save Objective</button></div></form></div></div></div>`;
+            <div class="modal fade" id="objectiveModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <form id="objective-form">
+                            <div class="modal-header"><h5 class="modal-title" id="objective-modal-title">Add Objective</h5></div>
+                            <div class="modal-body">
+                                <input type="hidden" id="objective-id">
+                                <div class="mb-3"><label for="objective-title" class="form-label">Objective Title</label><input type="text" class="form-control" id="objective-title" required></div>
+                                <div class="mb-3"><label for="objective-owner" class="form-label">Owner</label><select class="form-select" id="objective-owner" required></select></div>
+                                <div class="mb-3"><label for="objective-notes" class="form-label">Notes (Markdown supported)</label><textarea class="form-control" id="objective-notes" rows="5"></textarea></div>
+                                <div class="mb-3"><label for="objective-depends-on" class="form-label">Depends On (select one or more)</label><select class="form-select" id="objective-depends-on" multiple style="height: 150px;"></select></div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="submit" class="btn btn-primary">Save Objective</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>`;
     }
     renderKeyResultModal() {
         return `
-        <div class="modal fade" id="keyResultModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="kr-form"><div class="modal-header"><h5 class="modal-title" id="kr-modal-title">Add Key Result</h5></div><div class="modal-body"><input type="hidden" id="kr-objective-id"><input type="hidden" id="kr-id"><div class="mb-3"><label for="kr-title" class="form-label">Key Result Title</label><input type="text" class="form-control" id="kr-title" required></div><div class="row"><div class="col-md-3"><label for="kr-start-value" class="form-label">Start Value</label><input type="number" class="form-control" id="kr-start-value" value="0" required></div><div class="col-md-3"><label for="kr-current-value" class="form-label">Current Value</label><input type="number" class="form-control" id="kr-current-value" value="0" required></div><div class="col-md-3"><label for="kr-target-value" class="form-label">Target Value</label><input type="number" class="form-control" id="kr-target-value" required></div><div class="col-md-3"><label for="kr-confidence" class="form-label">Confidence</label><select class="form-select" id="kr-confidence" required><option>On Track</option><option>At Risk</option><option>Off Track</option></select></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save Key Result</button></div></form></div></div></div>`;
+            <div class="modal fade" id="keyResultModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <form id="kr-form">
+                            <div class="modal-header"><h5 class="modal-title" id="kr-modal-title">Add Key Result</h5></div>
+                            <div class="modal-body">
+                                <input type="hidden" id="kr-objective-id">
+                                <input type="hidden" id="kr-id">
+                                <div class="mb-3"><label for="kr-title" class="form-label">Key Result Title</label><input type="text" class="form-control" id="kr-title" required></div>
+                                <div class="row">
+                                    <div class="col-md-3"><label for="kr-start-value" class="form-label">Start Value</label><input type="number" class="form-control" id="kr-start-value" value="0" required></div>
+                                    <div class="col-md-3"><label for="kr-current-value" class="form-label">Current Value</label><input type="number" class="form-control" id="kr-current-value" value="0" required></div>
+                                    <div class="col-md-3"><label for="kr-target-value" class="form-label">Target Value</label><input type="number" class="form-control" id="kr-target-value" required></div>
+                                    <div class="col-md-3"><label for="kr-confidence" class="form-label">Confidence</label><select class="form-select" id="kr-confidence" required><option>On Track</option><option>At Risk</option><option>Off Track</option></select></div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="submit" class="btn btn-primary">Save Key Result</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>`;
     }
 }
