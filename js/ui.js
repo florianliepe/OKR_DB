@@ -40,6 +40,8 @@ class UI {
         return this.modals[id];
     }
     
+    // RESTORED METHODS
+    showModal(id) { this._getOrInitModal(id)?.show(); }
     hideModal(id) { this._getOrInitModal(id)?.hide(); }
 
     _createSparklineSVG(history) {
@@ -197,66 +199,7 @@ class UI {
         const atRiskPercent = krHealth.Total > 0 ? (krHealth['At Risk'] / krHealth.Total * 100) : 0;
         const offTrackPercent = krHealth.Total > 0 ? (krHealth['Off Track'] / krHealth.Total * 100) : 0;
         view.innerHTML = `
-            <div class="row g-4">
-                <div class="col-12">
-                    <div class="card dashboard-card">
-                        <div class="card-body">
-                            <h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5>
-                            <h2 class="display-4">${overallAverage}%</h2>
-                            <div class="progress" style="height: 2rem;">
-                                <div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card dashboard-card">
-                        <div class="card-body">
-                            <h5 class="card-title text-muted">Progress by Owner</h5>
-                            <ul class="list-group list-group-flush">
-                                ${progressByOwner.map(owner => `
-                                <li class="list-group-item bg-transparent">
-                                    <div class="d-flex justify-content-between">
-                                        <span>${owner.name}</span>
-                                        <strong>${owner.progress}%</strong>
-                                    </div>
-                                    <div class="progress mt-1" style="height: 0.5rem;">
-                                        <div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div>
-                                    </div>
-                                </li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card dashboard-card">
-                        <div class="card-body">
-                            <h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5>
-                            <div class="d-flex justify-content-around align-items-center text-center mt-4">
-                                <div class="health-stat">
-                                    <div class="stat-value text-success">${krHealth['On Track']}</div>
-                                    <div class="stat-label">On Track</div>
-                                </div>
-                                <div class="health-stat">
-                                    <div class="stat-value text-warning">${krHealth['At Risk']}</div>
-                                    <div class="stat-label">At Risk</div>
-                                </div>
-                                <div class="health-stat">
-                                    <div class="stat-value text-danger">${krHealth['Off Track']}</div>
-                                    <div class="stat-label">Off Track</div>
-                                </div>
-                            </div>
-                            <div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;">
-                                <div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div>
-                                <div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div>
-                                <div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
+            <div class="row g-4"><div class="col-12"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5><h2 class="display-4">${overallAverage}%</h2><div class="progress" style="height: 2rem;"><div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div></div></div></div></div><div class="col-md-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Progress by Owner</h5><ul class="list-group list-group-flush">${progressByOwner.map(owner => `<li class="list-group-item bg-transparent"><div class="d-flex justify-content-between"><span>${owner.name}</span><strong>${owner.progress}%</strong></div><div class="progress mt-1" style="height: 0.5rem;"><div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div></div></li>`).join('')}</ul></div></div></div><div class="col-md-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5><div class="d-flex justify-content-around align-items-center text-center mt-4"><div class="health-stat"><div class="stat-value text-success">${krHealth['On Track']}</div><div class="stat-label">On Track</div></div><div class="health-stat"><div class="stat-value text-warning">${krHealth['At Risk']}</div><div class="stat-label">At Risk</div></div><div class="health-stat"><div class="stat-value text-danger">${krHealth['Off Track']}</div><div class="stat-label">Off Track</div></div></div><div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;"><div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div><div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div><div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div></div></div></div></div></div>`;
     }
 
     renderNavControls(project) {
