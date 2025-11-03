@@ -65,6 +65,21 @@ class Store {
         this.saveAppData();
     }
 
+    importProject(projectData) {
+        if (!projectData || !projectData.name || !projectData.cycles) {
+            console.error('Invalid project data for import.');
+            return null;
+        }
+        const newProject = {
+            ...projectData,
+            id: `proj-${Date.now()}`,
+            name: `${projectData.name} (Imported)`
+        };
+        this.appData.projects.push(newProject);
+        this.saveAppData();
+        return newProject;
+    }
+
     _updateCurrentProject(updateFn) {
         const project = this.getCurrentProject();
         if (project) {
@@ -73,7 +88,6 @@ class Store {
         }
     }
     
-    // --- Methods operating on the CURRENT project ---
     addCycle(data) { this._updateCurrentProject(p => p.cycles.push({ id: `cycle-${Date.now()}`, ...data, status: "Archived" })); }
     setActiveCycle(id) { this._updateCurrentProject(p => p.cycles.forEach(c => c.status = (c.id === id) ? 'Active' : 'Archived')); }
     deleteCycle(id) { this._updateCurrentProject(p => { 
@@ -91,7 +105,17 @@ class Store {
         const obj = p.objectives.find(o => o.id === id);
         if (obj) Object.assign(obj, data);
     });}
-    deleteObjective(id) { this._updateCurrentProject(p => p.objectives = p.objectives.filter(o => o.id !== id));}
+    deleteObjective(id) { this._updateCurrentProject(p => {
+        this._updateCurrentProject(p => {
+            p.objectives = p.objectives.filter(o => o.id !== id);
+            // Also remove this objective from any dependencies other objectives might have on it
+            p.objectives.forEach(obj => {
+                if (obj.dependsOn && obj.dependsOn.includes(id)) {
+                    obj.dependsOn = obj.dependsOn.filter(depId => depId !== id);
+                }
+            });
+        });
+    });}
     
     addKeyResult(objId, data) { this._updateCurrentProject(p => {
         const obj = p.objectives.find(o => o.id === objId);
