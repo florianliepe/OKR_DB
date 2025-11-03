@@ -40,7 +40,6 @@ class UI {
         return this.modals[id];
     }
     
-    // RESTORED METHODS
     showModal(id) { this._getOrInitModal(id)?.show(); }
     hideModal(id) { this._getOrInitModal(id)?.hide(); }
 
@@ -119,8 +118,9 @@ class UI {
                             <ul class="nav nav-pills flex-column mb-auto">
                                 <li class="nav-item"><a href="#dashboard" class="nav-link text-white" data-view="dashboard-view"><i class="bi bi-bar-chart-line-fill me-2"></i> Dashboard</a></li>
                                 <li class="nav-item"><a href="#explorer" class="nav-link text-white" data-view="explorer-view"><i class="bi bi-columns-gap me-2"></i> OKR Explorer</a></li>
-                                <li><a href="#cycles" class="nav-link text-white" data-view="cycles-view"><i class="bi bi-arrow-repeat me-2"></i> Cycle Management</a></li>
-                                <li><a href="#foundation" class="nav-link text-white" data-view="foundation-view"><i class="bi bi-flag-fill me-2"></i> North Star</a></li>
+                                <li class="nav-item"><a href="#gantt" class="nav-link text-white" data-view="gantt-view"><i class="bi bi-bar-chart-steps me-2"></i> Gantt</a></li>
+                                <li class="nav-item"><a href="#cycles" class="nav-link text-white" data-view="cycles-view"><i class="bi bi-arrow-repeat me-2"></i> Cycle Management</a></li>
+                                <li class="nav-item"><a href="#foundation" class="nav-link text-white" data-view="foundation-view"><i class="bi bi-flag-fill me-2"></i> North Star</a></li>
                             </ul><hr>
                             <div class="d-flex flex-column gap-2">
                                 <button class="btn btn-sm btn-outline-secondary" id="export-project-btn"><i class="bi bi-download me-2"></i> Export Project</button>
@@ -145,6 +145,7 @@ class UI {
                         <div class="p-4 content-scroll-area">
                             <div id="dashboard-view" class="view-container" style="display:none;"></div>
                             <div id="explorer-view" class="view-container" style="display:none;"></div>
+                            <div id="gantt-view" class="view-container" style="display:none;"></div>
                             <div id="cycles-view" class="view-container" style="display:none;"></div>
                             <div id="foundation-view" class="view-container" style="display:none;"></div>
                         </div>
@@ -163,13 +164,66 @@ class UI {
         if (linkEl) linkEl.classList.add('active');
         const navControls = document.getElementById('nav-controls');
         const viewTitle = document.getElementById('view-title');
-        if (navControls) navControls.style.display = viewId === 'explorer-view' ? 'flex' : 'none';
+        
+        if (viewId === 'explorer-view' || viewId === 'dashboard-view' || viewId === 'gantt-view') {
+            navControls.style.display = 'flex';
+            document.getElementById('search-input').style.display = viewId === 'explorer-view' ? 'block' : 'none';
+            document.querySelector('#nav-controls .dropdown').style.display = 'flex';
+            document.getElementById('add-objective-btn').style.display = 'block';
+        } else {
+            navControls.style.display = 'none';
+        }
+
         if (viewTitle) {
             if (viewId === 'dashboard-view') viewTitle.textContent = 'Dashboard';
             if (viewId === 'explorer-view') viewTitle.textContent = 'OKR Explorer';
+            if (viewId === 'gantt-view') viewTitle.textContent = 'Gantt Timeline';
             if (viewId === 'cycles-view') viewTitle.textContent = 'Cycle Management';
             if (viewId === 'foundation-view') viewTitle.textContent = 'North Star (Mission & Vision)';
         }
+    }
+
+    renderGanttView(project) {
+        const view = document.getElementById('gantt-view');
+        if (!view) return;
+
+        const activeCycle = project.cycles.find(c => c.status === 'Active');
+        if (!activeCycle) {
+            view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
+            return;
+        }
+
+        const objectivesForGantt = project.objectives
+            .filter(obj => obj.cycleId === activeCycle.id && obj.startDate && obj.endDate)
+            .map(obj => ({
+                id: obj.id,
+                name: obj.title,
+                start: obj.startDate,
+                end: obj.endDate,
+                progress: obj.progress,
+                dependencies: obj.dependsOn?.join(',') || ''
+            }));
+
+        if (objectivesForGantt.length === 0) {
+            view.innerHTML = '<div class="alert alert-info">No objectives with start and end dates found in this cycle. Please edit objectives to add dates for them to appear on the Gantt chart.</div>';
+            return;
+        }
+
+        view.innerHTML = '<svg id="gantt-chart"></svg>';
+
+        const gantt = new Gantt("#gantt-chart", objectivesForGantt, {
+            header_height: 50,
+            column_width: 30,
+            step: 24,
+            view_modes: ['Quarter Day', 'Half Day', 'Day', 'Week', 'Month'],
+            bar_height: 20,
+            bar_corner_radius: 3,
+            arrow_curve: 5,
+            padding: 18,
+            view_mode: 'Week',
+            date_format: 'YYYY-MM-DD',
+            language: 'en'
+        });
     }
 
     renderDashboardView(project) {
@@ -198,8 +252,7 @@ class UI {
         const onTrackPercent = krHealth.Total > 0 ? (krHealth['On Track'] / krHealth.Total * 100) : 0;
         const atRiskPercent = krHealth.Total > 0 ? (krHealth['At Risk'] / krHealth.Total * 100) : 0;
         const offTrackPercent = krHealth.Total > 0 ? (krHealth['Off Track'] / krHealth.Total * 100) : 0;
-        view.innerHTML = `
-            <div class="row g-4"><div class="col-12"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5><h2 class="display-4">${overallAverage}%</h2><div class="progress" style="height: 2rem;"><div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div></div></div></div></div><div class="col-md-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Progress by Owner</h5><ul class="list-group list-group-flush">${progressByOwner.map(owner => `<li class="list-group-item bg-transparent"><div class="d-flex justify-content-between"><span>${owner.name}</span><strong>${owner.progress}%</strong></div><div class="progress mt-1" style="height: 0.5rem;"><div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div></div></li>`).join('')}</ul></div></div></div><div class="col-md-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5><div class="d-flex justify-content-around align-items-center text-center mt-4"><div class="health-stat"><div class="stat-value text-success">${krHealth['On Track']}</div><div class="stat-label">On Track</div></div><div class="health-stat"><div class="stat-value text-warning">${krHealth['At Risk']}</div><div class="stat-label">At Risk</div></div><div class="health-stat"><div class="stat-value text-danger">${krHealth['Off Track']}</div><div class="stat-label">Off Track</div></div></div><div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;"><div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div><div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div><div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div></div></div></div></div></div>`;
+        view.innerHTML = `<div class="row g-4"><div class="col-12"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5><h2 class="display-4">${overallAverage}%</h2><div class="progress" style="height: 2rem;"><div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div></div></div></div></div><div class="col-md-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Progress by Owner</h5><ul class="list-group list-group-flush">${progressByOwner.map(owner => `<li class="list-group-item bg-transparent"><div class="d-flex justify-content-between"><span>${owner.name}</span><strong>${owner.progress}%</strong></div><div class="progress mt-1" style="height: 0.5rem;"><div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div></div></li>`).join('')}</ul></div></div></div><div class="col-md-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5><div class="d-flex justify-content-around align-items-center text-center mt-4"><div class="health-stat"><div class="stat-value text-success">${krHealth['On Track']}</div><div class="stat-label">On Track</div></div><div class="health-stat"><div class="stat-value text-warning">${krHealth['At Risk']}</div><div class="stat-label">At Risk</div></div><div class="health-stat"><div class="stat-value text-danger">${krHealth['Off Track']}</div><div class="stat-label">Off Track</div></div></div><div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;"><div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div><div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div><div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div></div></div></div></div></div>`;
     }
 
     renderNavControls(project) {
@@ -445,48 +498,4 @@ class UI {
                 <div class="modal-dialog modal-lg">
                     <div class="modal-content">
                         <form id="objective-form">
-                            <div class="modal-header"><h5 class="modal-title" id="objective-modal-title">Add Objective</h5></div>
-                            <div class="modal-body">
-                                <input type="hidden" id="objective-id">
-                                <div class="mb-3"><label for="objective-title" class="form-label">Objective Title</label><input type="text" class="form-control" id="objective-title" required></div>
-                                <div class="mb-3"><label for="objective-owner" class="form-label">Owner</label><select class="form-select" id="objective-owner" required></select></div>
-                                <div class="mb-3"><label for="objective-notes" class="form-label">Notes (Markdown supported)</label><textarea class="form-control" id="objective-notes" rows="5"></textarea></div>
-                                <div class="mb-3"><label for="objective-depends-on" class="form-label">Depends On (select one or more)</label><select class="form-select" id="objective-depends-on" multiple style="height: 150px;"></select></div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                                <button type="submit" class="btn btn-primary">Save Objective</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>`;
-    }
-    renderKeyResultModal() {
-        return `
-            <div class="modal fade" id="keyResultModal" tabindex="-1">
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <form id="kr-form">
-                            <div class="modal-header"><h5 class="modal-title" id="kr-modal-title">Add Key Result</h5></div>
-                            <div class="modal-body">
-                                <input type="hidden" id="kr-objective-id">
-                                <input type="hidden" id="kr-id">
-                                <div class="mb-3"><label for="kr-title" class="form-label">Key Result Title</label><input type="text" class="form-control" id="kr-title" required></div>
-                                <div class="row">
-                                    <div class="col-md-3"><label for="kr-start-value" class="form-label">Start Value</label><input type="number" class="form-control" id="kr-start-value" value="0" required></div>
-                                    <div class="col-md-3"><label for="kr-current-value" class="form-label">Current Value</label><input type="number" class="form-control" id="kr-current-value" value="0" required></div>
-                                    <div class="col-md-3"><label for="kr-target-value" class="form-label">Target Value</label><input type="number" class="form-control" id="kr-target-value" required></div>
-                                    <div class="col-md-3"><label for="kr-confidence" class="form-label">Confidence</label><select class="form-select" id="kr-confidence" required><option>On Track</option><option>At Risk</option><option>Off Track</option></select></div>
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                                <button type="submit" class="btn btn-primary">Save Key Result</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>`;
-    }
-}
+                            <div cla
