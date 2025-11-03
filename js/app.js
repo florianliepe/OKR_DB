@@ -45,6 +45,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 main();
             }
         });
+
+        const importInput = document.getElementById('import-project-input');
+        if (importInput) {
+            addListener(importInput, 'change', e => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const projectData = JSON.parse(event.target.result);
+                        const importedProject = store.importProject(projectData);
+                        if (importedProject) {
+                            ui.showToast(`Project "${importedProject.name}" imported successfully.`);
+                            main();
+                        } else {
+                            ui.showToast('Failed to import project. Invalid file format.', 'danger');
+                        }
+                    } catch (err) {
+                        console.error('Error parsing project file:', err);
+                        ui.showToast('Failed to import project. File is not valid JSON.', 'danger');
+                    }
+                    e.target.value = '';
+                };
+                reader.readAsText(file);
+            });
+        }
+        
         addListener(document.getElementById('new-project-form'), 'submit', e => {
             e.preventDefault();
             const projectName = document.getElementById('project-name').value;
@@ -84,6 +112,23 @@ document.addEventListener('DOMContentLoaded', () => {
         addListener(window, 'hashchange', router);
         addListener(document.getElementById('back-to-projects'), 'click', () => { 
             window.location.hash = ''; store.setCurrentProjectId(null); main(); 
+        });
+
+        addListener(document.getElementById('export-project-btn'), 'click', () => {
+            const currentProject = store.getCurrentProject();
+            const projectName = currentProject.name.replace(/\s/g, '_').toLowerCase();
+            const fileName = `${projectName}_okr_backup.json`;
+            const dataStr = JSON.stringify(currentProject, null, 2);
+            const dataBlob = new Blob([dataStr], {type: "application/json"});
+            const url = URL.createObjectURL(dataBlob);
+            const downloadLink = document.createElement('a');
+            downloadLink.href = url;
+            downloadLink.download = fileName;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            URL.revokeObjectURL(url);
+            ui.showToast(`Project exported to ${fileName}.`, 'info');
         });
         
         addListener(document.getElementById('search-input'), 'input', e => ui.renderExplorerView(project, e.target.value));
@@ -146,13 +191,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     title: document.getElementById('objective-title').value, ownerId: document.getElementById('objective-owner').value,
                     notes: document.getElementById('objective-notes').value, dependsOn: dependsOn
                 };
-                if(id) {
-                    store.updateObjective(id, data);
-                    ui.showToast('Objective updated successfully!');
-                } else {
-                    store.addObjective(data);
-                    ui.showToast('Objective added successfully!');
-                }
+                if(id) { store.updateObjective(id, data); ui.showToast('Objective updated successfully!'); } 
+                else { store.addObjective(data); ui.showToast('Objective added successfully!'); }
                 ui.hideModal('objectiveModal');
                 router();
             }
@@ -164,13 +204,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentValue: document.getElementById('kr-current-value').value, targetValue: document.getElementById('kr-target-value').value,
                     confidence: document.getElementById('kr-confidence').value
                 };
-                if (krId) {
-                    store.updateKeyResult(objId, krId, data);
-                    ui.showToast('Key Result updated successfully!');
-                } else {
-                    store.addKeyResult(objId, data);
-                    ui.showToast('Key Result added successfully!');
-                }
+                if (krId) { store.updateKeyResult(objId, krId, data); ui.showToast('Key Result updated successfully!'); } 
+                else { store.addKeyResult(objId, data); ui.showToast('Key Result added successfully!'); }
                 ui.hideModal('keyResultModal');
                 router();
             }
@@ -191,10 +226,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         addListener(document, 'show.bs.modal', e => {
-            const modal = e.target;
-            const trigger = e.relatedTarget;
+            const modal = e.target, trigger = e.relatedTarget;
             if (!trigger) return;
-
             if (modal.id === 'objectiveModal') {
                 project = store.getCurrentProject();
                 const form = document.getElementById('objective-form');
@@ -223,11 +256,8 @@ document.addEventListener('DOMContentLoaded', () => {
                             });
                         }
                     }
-                } else {
-                    document.getElementById('objective-modal-title').textContent = 'Add Objective';
-                }
+                } else { document.getElementById('objective-modal-title').textContent = 'Add Objective'; }
             }
-
             if (modal.id === 'keyResultModal') {
                 project = store.getCurrentProject();
                 const form = document.getElementById('kr-form');
@@ -250,10 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.getElementById('kr-target-value').value = kr.targetValue;
                         document.getElementById('kr-confidence').value = kr.confidence || 'On Track';
                     }
-                } else {
-                    document.getElementById('kr-modal-title').textContent = 'Add Key Result';
-                    document.getElementById('kr-current-value').value = 0;
-                }
+                } else { document.getElementById('kr-modal-title').textContent = 'Add Key Result'; document.getElementById('kr-current-value').value = 0; }
             }
         });
 
