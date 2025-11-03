@@ -41,6 +41,16 @@ class UI {
         toast.show();
     }
 
+    _highlightText(text, searchTerm) {
+        if (!searchTerm || !text) {
+            return text;
+        }
+        // Escape special regex characters from the search term
+        const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(${escapedTerm})`, 'gi');
+        return text.replace(regex, `<mark>$1</mark>`);
+    }
+
     _getOrInitModal(id) {
         if (!this.modals[id]) {
             const modalEl = document.getElementById(id);
@@ -176,22 +186,18 @@ class UI {
     renderDashboardView(project) {
         const view = document.getElementById('dashboard-view');
         if (!view) return;
-
         const activeCycle = project.cycles.find(c => c.status === 'Active');
         if (!activeCycle) {
             view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
             return;
         }
-
         const objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
         if (objectivesInCycle.length === 0) {
             view.innerHTML = '<div class="alert alert-info">No objectives in the current cycle to display on the dashboard.</div>';
             return;
         }
-
         const totalProgress = objectivesInCycle.reduce((sum, obj) => sum + obj.progress, 0);
         const overallAverage = objectivesInCycle.length > 0 ? Math.round(totalProgress / objectivesInCycle.length) : 0;
-
         const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
         const progressByOwner = owners.map(owner => {
             const ownerObjectives = objectivesInCycle.filter(o => o.ownerId === owner.id);
@@ -202,7 +208,6 @@ class UI {
                 progress: Math.round(ownerTotalProgress / ownerObjectives.length)
             };
         }).filter(Boolean);
-
         const allKrs = objectivesInCycle.flatMap(o => o.keyResults);
         const krHealth = {
             'On Track': allKrs.filter(kr => (kr.confidence || 'On Track') === 'On Track').length,
@@ -213,68 +218,8 @@ class UI {
         const onTrackPercent = krHealth.Total > 0 ? (krHealth['On Track'] / krHealth.Total * 100) : 0;
         const atRiskPercent = krHealth.Total > 0 ? (krHealth['At Risk'] / krHealth.Total * 100) : 0;
         const offTrackPercent = krHealth.Total > 0 ? (krHealth['Off Track'] / krHealth.Total * 100) : 0;
-        
         view.innerHTML = `
-            <div class="row g-4">
-                <div class="col-12">
-                    <div class="card dashboard-card">
-                        <div class="card-body">
-                            <h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5>
-                            <h2 class="display-4">${overallAverage}%</h2>
-                            <div class="progress" style="height: 2rem;">
-                                <div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card dashboard-card">
-                        <div class="card-body">
-                            <h5 class="card-title text-muted">Progress by Owner</h5>
-                            <ul class="list-group list-group-flush">
-                                ${progressByOwner.map(owner => `
-                                <li class="list-group-item bg-transparent">
-                                    <div class="d-flex justify-content-between">
-                                        <span>${owner.name}</span>
-                                        <strong>${owner.progress}%</strong>
-                                    </div>
-                                    <div class="progress mt-1" style="height: 0.5rem;">
-                                        <div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div>
-                                    </div>
-                                </li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="card dashboard-card">
-                        <div class="card-body">
-                            <h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5>
-                            <div class="d-flex justify-content-around align-items-center text-center mt-4">
-                                <div class="health-stat">
-                                    <div class="stat-value text-success">${krHealth['On Track']}</div>
-                                    <div class="stat-label">On Track</div>
-                                </div>
-                                <div class="health-stat">
-                                    <div class="stat-value text-warning">${krHealth['At Risk']}</div>
-                                    <div class="stat-label">At Risk</div>
-                                </div>
-                                <div class="health-stat">
-                                    <div class="stat-value text-danger">${krHealth['Off Track']}</div>
-                                    <div class="stat-label">Off Track</div>
-                                </div>
-                            </div>
-                            <div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;">
-                                <div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div>
-                                <div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div>
-                                <div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
+            <div class="row g-4"><div class="col-12"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5><h2 class="display-4">${overallAverage}%</h2><div class="progress" style="height: 2rem;"><div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div></div></div></div></div><div class="col-md-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Progress by Owner</h5><ul class="list-group list-group-flush">${progressByOwner.map(owner => `<li class="list-group-item bg-transparent"><div class="d-flex justify-content-between"><span>${owner.name}</span><strong>${owner.progress}%</strong></div><div class="progress mt-1" style="height: 0.5rem;"><div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div></div></li>`).join('')}</ul></div></div></div><div class="col-md-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5><div class="d-flex justify-content-around align-items-center text-center mt-4"><div class="health-stat"><div class="stat-value text-success">${krHealth['On Track']}</div><div class="stat-label">On Track</div></div><div class="health-stat"><div class="stat-value text-warning">${krHealth['At Risk']}</div><div class="stat-label">At Risk</div></div><div class="health-stat"><div class="stat-value text-danger">${krHealth['Off Track']}</div><div class="stat-label">Off Track</div></div></div><div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;"><div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div><div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div><div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div></div></div></div></div></div>`;
     }
 
     renderNavControls(project) {
@@ -314,10 +259,10 @@ class UI {
             );
         }
         const companyObjectives = objectivesToRender.filter(o => o.ownerId === 'company');
-        let html = this.renderObjectiveGroup(project.companyName, companyObjectives, project, objectivesInCycle);
+        let html = this.renderObjectiveGroup(project.companyName, companyObjectives, project, objectivesInCycle, searchTerm);
         project.teams.forEach(team => {
             const teamObjectives = objectivesToRender.filter(o => o.ownerId === team.id);
-            html += this.renderObjectiveGroup(team.name, teamObjectives, project, objectivesInCycle);
+            html += this.renderObjectiveGroup(team.name, teamObjectives, project, objectivesInCycle, searchTerm);
         });
         if (!html && searchTerm) {
             view.innerHTML = `<div class="text-center p-5"><h3>No results for "${searchTerm}".</h3></div>`;
@@ -328,21 +273,25 @@ class UI {
         }
     }
 
-    renderObjectiveGroup(groupName, objectives, project, allObjectivesInCycle) {
+    renderObjectiveGroup(groupName, objectives, project, allObjectivesInCycle, searchTerm) {
         if (objectives.length === 0) return '';
         return `
             <div class="mb-5">
                 <h2 class="team-header">${groupName}</h2>
                 <div class="d-flex flex-column gap-3">
-                    ${objectives.map(obj => this.renderOkrCard(obj, project, allObjectivesInCycle)).join('')}
+                    ${objectives.map(obj => this.renderOkrCard(obj, project, allObjectivesInCycle, searchTerm)).join('')}
                 </div>
             </div>`;
     }
 
-    renderOkrCard(objective, project, allObjectivesInCycle) {
+    renderOkrCard(objective, project, allObjectivesInCycle, searchTerm) {
+        const highlightedTitle = this._highlightText(objective.title, searchTerm);
+        const highlightedNotes = this._highlightText(objective.notes, searchTerm);
+
         const notesHtml = (objective.notes && objective.notes.trim() !== '') 
-            ? `<div class="obj-notes">${marked.parse(objective.notes)}</div>` 
+            ? `<div class="obj-notes">${marked.parse(highlightedNotes)}</div>` 
             : '';
+        
         const dependsOnCount = objective.dependsOn?.length || 0;
         const blocksCount = allObjectivesInCycle.filter(o => o.dependsOn?.includes(objective.id)).length;
         const dependsOnBadge = dependsOnCount > 0 ? `<span class="badge bg-secondary ms-2"><i class="bi bi-arrow-down"></i> Depends on ${dependsOnCount}</span>` : '';
@@ -351,7 +300,7 @@ class UI {
         <div class="card okr-card" id="obj-${objective.id}">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <div>
-                    <h5 class="mb-0 d-inline">${objective.title}</h5>
+                    <h5 class="mb-0 d-inline">${highlightedTitle}</h5>
                     ${dependsOnBadge}
                     ${blocksBadge}
                 </div>
@@ -368,7 +317,7 @@ class UI {
                 </div>
                 ${notesHtml}
                 <div class="key-results-list">
-                    ${objective.keyResults.map(kr => this.renderKeyResult(kr, objective.id)).join('')}
+                    ${objective.keyResults.map(kr => this.renderKeyResult(kr, objective.id, searchTerm)).join('')}
                 </div>
             </div>
             <div class="card-footer text-end">
@@ -377,7 +326,8 @@ class UI {
         </div>`;
     }
 
-    renderKeyResult(kr, objectiveId) {
+    renderKeyResult(kr, objectiveId, searchTerm) {
+        const highlightedKrTitle = this._highlightText(kr.title, searchTerm);
         const progress = kr.progress || 0;
         const confidence = kr.confidence || 'On Track';
         const confidenceColors = { 'On Track': 'bg-success', 'At Risk': 'bg-warning', 'Off Track': 'bg-danger' };
@@ -387,7 +337,7 @@ class UI {
         <div class="kr-item">
             <div class="kr-title">
                 <span class="badge ${badgeColor} me-2">${confidence}</span>
-                ${kr.title}
+                ${highlightedKrTitle}
             </div>
             <div class="kr-progress-container">
                 ${sparklineHtml}
