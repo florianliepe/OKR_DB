@@ -105,17 +105,16 @@ class Store {
         const obj = p.objectives.find(o => o.id === id);
         if (obj) Object.assign(obj, data);
     });}
-    deleteObjective(id) { this._updateCurrentProject(p => {
+    deleteObjective(id) {
         this._updateCurrentProject(p => {
             p.objectives = p.objectives.filter(o => o.id !== id);
-            // Also remove this objective from any dependencies other objectives might have on it
             p.objectives.forEach(obj => {
                 if (obj.dependsOn && obj.dependsOn.includes(id)) {
                     obj.dependsOn = obj.dependsOn.filter(depId => depId !== id);
                 }
             });
         });
-    });}
+    }
     
     addKeyResult(objId, data) { this._updateCurrentProject(p => {
         const obj = p.objectives.find(o => o.id === objId);
@@ -137,7 +136,7 @@ class Store {
             const kr = obj.keyResults.find(k => k.id === krId);
             if(kr) {
                 if (!kr.history) kr.history = [];
-                const hasValueChanged = kr.currentValue !== data.currentValue;
+                const hasValueChanged = String(kr.currentValue) !== String(data.currentValue);
                 if (hasValueChanged) {
                     kr.history.push({
                         date: new Date().toISOString().split('T')[0],
@@ -162,7 +161,7 @@ class Store {
         if (!objective.keyResults || objective.keyResults.length === 0) return 0;
         const total = objective.keyResults.reduce((sum, kr) => {
             const start = Number(kr.startValue), target = Number(kr.targetValue), current = Number(kr.currentValue);
-            if (target === start) return sum + 1;
+            if (target === start) return sum + 100;
             kr.progress = Math.max(0, Math.min(100, ((current - start) / (target - start)) * 100));
             return sum + kr.progress;
         }, 0);
