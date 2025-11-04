@@ -14,6 +14,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initializeTooltips() {
+        // First, dispose of any existing tooltips to prevent memory leaks
+        const existingTooltips = bootstrap.Tooltip.getInstance(document.body);
+        if (existingTooltips) {
+             document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
+                const tooltip = bootstrap.Tooltip.getInstance(el);
+                if (tooltip) {
+                    tooltip.dispose();
+                }
+            });
+        }
+        // Then, initialize new ones
         const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
         [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
     }
