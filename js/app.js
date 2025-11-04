@@ -188,12 +188,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.target.id === 'cancel-edit-foundation-btn') ui.renderFoundationView(project, false);
         });
 
-        // Event listener for the report date input
         addListener(document.getElementById('app-container'), 'change', e => {
             if (e.target.id === 'report-date-input') {
                 const newDate = e.target.value;
-                project = store.getCurrentProject(); // Ensure project data is fresh
+                project = store.getCurrentProject();
                 ui.renderReportingView(project, newDate);
+            }
+            if (e.target.id === 'dashboard-filter') {
+                const filterOwnerId = e.target.value;
+                project = store.getCurrentProject();
+                ui.renderDashboardView(project, filterOwnerId);
             }
         });
         
