@@ -419,7 +419,7 @@ class UI {
         return `
             <div class="mb-5">
                 <h2 class="team-header">${groupName}</h2>
-                <div class="d-flex flex-column gap-3">
+                <div class="objective-list d-flex flex-column gap-3" data-owner-id="${objectives[0]?.ownerId || ''}">
                     ${objectives.map(obj => this.renderOkrCard(obj, project, allObjectivesInCycle, searchTerm)).join('')}
                 </div>
             </div>`;
@@ -434,7 +434,7 @@ class UI {
         const dependsOnBadge = dependsOnCount > 0 ? `<span class="badge bg-secondary ms-2"><i class="bi bi-arrow-down"></i> Depends on ${dependsOnCount}</span>` : '';
         const blocksBadge = blocksCount > 0 ? `<span class="badge bg-warning text-dark ms-2"><i class="bi bi-arrow-up"></i> Blocks ${blocksCount}</span>` : '';
         return `
-            <div class="card okr-card" id="obj-${objective.id}">
+            <div class="card okr-card" id="${objective.id}" draggable="true">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <div>
                         <h5 class="mb-0 d-inline">${highlightedTitle}</h5>
