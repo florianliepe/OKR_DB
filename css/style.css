@@ -183,3 +183,15 @@ mark {
 .gantt .bar-wrapper.active .bar {
     stroke: white;
 }
+
+/* Drag and Drop Styles */
+.okr-card.dragging {
+    opacity: 0.5;
+}
+
+.drag-over-placeholder {
+    height: 2px;
+    background-color: #0d6efd;
+    margin: -1px 0; /* Adjust to sit between items */
+    transition: all 0.2s ease;
+}
