@@ -186,13 +186,8 @@ class UI {
     renderGanttView(project) {
         const view = document.getElementById('gantt-view');
         if (!view) return;
-
         const activeCycle = project.cycles.find(c => c.status === 'Active');
-        if (!activeCycle) {
-            view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
-            return;
-        }
-
+        if (!activeCycle) { view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>'; return; }
         const objectivesForGantt = project.objectives
             .filter(obj => obj.cycleId === activeCycle.id && obj.startDate && obj.endDate)
             .map(obj => ({
@@ -203,26 +198,13 @@ class UI {
                 progress: obj.progress,
                 dependencies: obj.dependsOn?.join(',') || ''
             }));
-
-        if (objectivesForGantt.length === 0) {
-            view.innerHTML = '<div class="alert alert-info">No objectives with start and end dates found in this cycle. Please edit objectives to add dates for them to appear on the Gantt chart.</div>';
-            return;
-        }
-
+        if (objectivesForGantt.length === 0) { view.innerHTML = '<div class="alert alert-info">No objectives with start and end dates found in this cycle. Please edit objectives to add dates for them to appear on the Gantt chart.</div>'; return; }
         view.innerHTML = '<svg id="gantt-chart"></svg>';
-
-        const gantt = new Gantt("#gantt-chart", objectivesForGantt, {
-            header_height: 50,
-            column_width: 30,
-            step: 24,
+        new Gantt("#gantt-chart", objectivesForGantt, {
+            header_height: 50, column_width: 30, step: 24,
             view_modes: ['Quarter Day', 'Half Day', 'Day', 'Week', 'Month'],
-            bar_height: 20,
-            bar_corner_radius: 3,
-            arrow_curve: 5,
-            padding: 18,
-            view_mode: 'Week',
-            date_format: 'YYYY-MM-DD',
-            language: 'en'
+            bar_height: 20, bar_corner_radius: 3, arrow_curve: 5, padding: 18,
+            view_mode: 'Week', date_format: 'YYYY-MM-DD', language: 'en'
         });
     }
 
@@ -349,11 +331,15 @@ class UI {
         const confidenceColors = { 'On Track': 'bg-success', 'At Risk': 'bg-warning', 'Off Track': 'bg-danger' };
         const badgeColor = confidenceColors[confidence];
         const sparklineHtml = this._createSparklineSVG(kr.history);
+        const notesIcon = (kr.notes && kr.notes.trim() !== '') 
+            ? `<i class="bi bi-sticky text-muted ms-2" data-bs-toggle="tooltip" title="${kr.notes}"></i>` 
+            : '';
         return `
             <div class="kr-item">
                 <div class="kr-title">
                     <span class="badge ${badgeColor} me-2">${confidence}</span>
                     ${highlightedKrTitle}
+                    ${notesIcon}
                 </div>
                 <div class="kr-progress-container">
                     ${sparklineHtml}
@@ -532,11 +518,15 @@ class UI {
                                 <input type="hidden" id="kr-objective-id">
                                 <input type="hidden" id="kr-id">
                                 <div class="mb-3"><label for="kr-title" class="form-label">Key Result Title</label><input type="text" class="form-control" id="kr-title" required></div>
-                                <div class="row">
+                                <div class="row mb-3">
                                     <div class="col-md-3"><label for="kr-start-value" class="form-label">Start Value</label><input type="number" class="form-control" id="kr-start-value" value="0" required></div>
                                     <div class="col-md-3"><label for="kr-current-value" class="form-label">Current Value</label><input type="number" class="form-control" id="kr-current-value" value="0" required></div>
                                     <div class="col-md-3"><label for="kr-target-value" class="form-label">Target Value</label><input type="number" class="form-control" id="kr-target-value" required></div>
                                     <div class="col-md-3"><label for="kr-confidence" class="form-label">Confidence</label><select class="form-select" id="kr-confidence" required><option>On Track</option><option>At Risk</option><option>Off Track</option></select></div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="kr-notes" class="form-label">Notes (optional)</label>
+                                    <textarea class="form-control" id="kr-notes" rows="3"></textarea>
                                 </div>
                             </div>
                             <div class="modal-footer">
