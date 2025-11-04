@@ -109,6 +109,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 case '#dashboard': ui.renderDashboardView(project); break;
                 case '#explorer': ui.renderExplorerView(project, document.getElementById('search-input').value); break;
                 case '#gantt': ui.renderGanttView(project); break;
+                case '#reporting': ui.renderReportingView(project); break;
                 case '#cycles': ui.renderCyclesView(project); break;
                 case '#foundation': ui.renderFoundationView(project); break;
             }
@@ -185,6 +186,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (e.target.id === 'edit-foundation-btn') ui.renderFoundationView(project, true);
             if (e.target.id === 'cancel-edit-foundation-btn') ui.renderFoundationView(project, false);
+        });
+
+        // Event listener for the report date input
+        addListener(document.getElementById('app-container'), 'change', e => {
+            if (e.target.id === 'report-date-input') {
+                const newDate = e.target.value;
+                project = store.getCurrentProject(); // Ensure project data is fresh
+                ui.renderReportingView(project, newDate);
+            }
         });
         
         addListener(document, 'submit', e => {
