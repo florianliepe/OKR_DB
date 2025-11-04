@@ -119,6 +119,7 @@ class UI {
                                 <li class="nav-item"><a href="#dashboard" class="nav-link text-white" data-view="dashboard-view"><i class="bi bi-bar-chart-line-fill me-2"></i> Dashboard</a></li>
                                 <li class="nav-item"><a href="#explorer" class="nav-link text-white" data-view="explorer-view"><i class="bi bi-columns-gap me-2"></i> OKR Explorer</a></li>
                                 <li class="nav-item"><a href="#gantt" class="nav-link text-white" data-view="gantt-view"><i class="bi bi-bar-chart-steps me-2"></i> Gantt</a></li>
+                                <li class="nav-item"><a href="#reporting" class="nav-link text-white" data-view="reporting-view"><i class="bi bi-clock-history me-2"></i> Reporting</a></li>
                                 <li class="nav-item"><a href="#cycles" class="nav-link text-white" data-view="cycles-view"><i class="bi bi-arrow-repeat me-2"></i> Cycle Management</a></li>
                                 <li class="nav-item"><a href="#foundation" class="nav-link text-white" data-view="foundation-view"><i class="bi bi-flag-fill me-2"></i> North Star</a></li>
                             </ul><hr>
@@ -146,6 +147,7 @@ class UI {
                             <div id="dashboard-view" class="view-container" style="display:none;"></div>
                             <div id="explorer-view" class="view-container" style="display:none;"></div>
                             <div id="gantt-view" class="view-container" style="display:none;"></div>
+                            <div id="reporting-view" class="view-container" style="display:none;"></div>
                             <div id="cycles-view" class="view-container" style="display:none;"></div>
                             <div id="foundation-view" class="view-container" style="display:none;"></div>
                         </div>
@@ -165,7 +167,7 @@ class UI {
         const navControls = document.getElementById('nav-controls');
         const viewTitle = document.getElementById('view-title');
         
-        if (viewId === 'explorer-view' || viewId === 'dashboard-view' || viewId === 'gantt-view') {
+        if (['explorer-view', 'dashboard-view', 'gantt-view', 'reporting-view'].includes(viewId)) {
             navControls.style.display = 'flex';
             document.getElementById('search-input').style.display = viewId === 'explorer-view' ? 'block' : 'none';
             document.querySelector('#nav-controls .dropdown').style.display = 'flex';
@@ -178,9 +180,80 @@ class UI {
             if (viewId === 'dashboard-view') viewTitle.textContent = 'Dashboard';
             if (viewId === 'explorer-view') viewTitle.textContent = 'OKR Explorer';
             if (viewId === 'gantt-view') viewTitle.textContent = 'Gantt Timeline';
+            if (viewId === 'reporting-view') viewTitle.textContent = 'Reporting';
             if (viewId === 'cycles-view') viewTitle.textContent = 'Cycle Management';
             if (viewId === 'foundation-view') viewTitle.textContent = 'North Star (Mission & Vision)';
         }
+    }
+
+    renderReportingView(project, reportDate = null) {
+        const view = document.getElementById('reporting-view');
+        if (!view) return;
+
+        let reportContentHtml = '<div class="alert alert-info">Select a date to generate a status report.</div>';
+
+        if (reportDate) {
+            const activeCycle = project.cycles.find(c => c.status === 'Active');
+            if (activeCycle) {
+                const objectivesInCycle = JSON.parse(JSON.stringify(project.objectives.filter(o => o.cycleId === activeCycle.id)));
+
+                objectivesInCycle.forEach(obj => {
+                    obj.keyResults.forEach(kr => {
+                        const relevantHistory = kr.history.filter(h => h.date <= reportDate);
+                        if (relevantHistory.length > 0) {
+                            relevantHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+                            kr.currentValue = relevantHistory[0].value;
+                        } else {
+                            kr.currentValue = kr.startValue;
+                        }
+                    });
+                    
+                    if (obj.keyResults.length > 0) {
+                        const total = obj.keyResults.reduce((sum, kr) => {
+                            const start = Number(kr.startValue), target = Number(kr.targetValue), current = Number(kr.currentValue);
+                            if (target === start) return sum + 100;
+                            const progress = Math.max(0, Math.min(100, ((current - start) / (target - start)) * 100));
+                            return sum + progress;
+                        }, 0);
+                        obj.progress = Math.round(total / obj.keyResults.length);
+                    } else {
+                        obj.progress = 0;
+                    }
+                });
+
+                if (objectivesInCycle.length > 0) {
+                    const totalProgress = objectivesInCycle.reduce((sum, obj) => sum + obj.progress, 0);
+                    const overallAverage = Math.round(totalProgress / objectivesInCycle.length);
+                    reportContentHtml = `
+                        <div class="card dashboard-card">
+                            <div class="card-body">
+                                <h5 class="card-title text-muted">Overall Progress as of ${reportDate}</h5>
+                                <h2 class="display-4">${overallAverage}%</h2>
+                                <div class="progress" style="height: 2rem;">
+                                    <div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                        </div>`;
+                } else {
+                    reportContentHtml = `<div class="alert alert-info">No objectives were found in this cycle on or before ${reportDate}.</div>`;
+                }
+            } else {
+                reportContentHtml = '<div class="alert alert-warning">No active cycle found.</div>';
+            }
+        }
+
+        view.innerHTML = `
+            <div class="card dashboard-card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Point-in-Time Report</h5>
+                    <p class="card-text text-muted">Select a date to see the status of all objectives in the active cycle on that day.</p>
+                    <div class="col-md-4">
+                       <input type="date" id="report-date-input" class="form-control" value="${reportDate || ''}">
+                    </div>
+                </div>
+            </div>
+            <div id="report-content">${reportContentHtml}</div>
+        `;
     }
 
     renderGanttView(project) {
