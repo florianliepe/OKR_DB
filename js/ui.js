@@ -189,14 +189,11 @@ class UI {
     renderReportingView(project, reportDate = null) {
         const view = document.getElementById('reporting-view');
         if (!view) return;
-
         let reportContentHtml = '<div class="alert alert-info">Select a date to generate a status report.</div>';
-
         if (reportDate) {
             const activeCycle = project.cycles.find(c => c.status === 'Active');
             if (activeCycle) {
                 const objectivesInCycle = JSON.parse(JSON.stringify(project.objectives.filter(o => o.cycleId === activeCycle.id)));
-
                 objectivesInCycle.forEach(obj => {
                     obj.keyResults.forEach(kr => {
                         const relevantHistory = kr.history.filter(h => h.date <= reportDate);
@@ -207,7 +204,6 @@ class UI {
                             kr.currentValue = kr.startValue;
                         }
                     });
-                    
                     if (obj.keyResults.length > 0) {
                         const total = obj.keyResults.reduce((sum, kr) => {
                             const start = Number(kr.startValue), target = Number(kr.targetValue), current = Number(kr.currentValue);
@@ -220,7 +216,6 @@ class UI {
                         obj.progress = 0;
                     }
                 });
-
                 if (objectivesInCycle.length > 0) {
                     const totalProgress = objectivesInCycle.reduce((sum, obj) => sum + obj.progress, 0);
                     const overallAverage = Math.round(totalProgress / objectivesInCycle.length);
@@ -241,7 +236,6 @@ class UI {
                 reportContentHtml = '<div class="alert alert-warning">No active cycle found.</div>';
             }
         }
-
         view.innerHTML = `
             <div class="card dashboard-card mb-4">
                 <div class="card-body">
@@ -252,8 +246,7 @@ class UI {
                     </div>
                 </div>
             </div>
-            <div id="report-content">${reportContentHtml}</div>
-        `;
+            <div id="report-content">${reportContentHtml}</div>`;
     }
 
     renderGanttView(project) {
@@ -281,33 +274,106 @@ class UI {
         });
     }
 
-    renderDashboardView(project) {
+    renderDashboardView(project, filterOwnerId = 'all') {
         const view = document.getElementById('dashboard-view');
         if (!view) return;
         const activeCycle = project.cycles.find(c => c.status === 'Active');
-        if (!activeCycle) { view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>'; return; }
-        const objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
-        if (objectivesInCycle.length === 0) { view.innerHTML = '<div class="alert alert-info">No objectives in the current cycle to display on the dashboard.</div>'; return; }
-        const totalProgress = objectivesInCycle.reduce((sum, obj) => sum + obj.progress, 0);
-        const overallAverage = objectivesInCycle.length > 0 ? Math.round(totalProgress / objectivesInCycle.length) : 0;
         const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
-        const progressByOwner = owners.map(owner => {
-            const ownerObjectives = objectivesInCycle.filter(o => o.ownerId === owner.id);
-            if (ownerObjectives.length === 0) return null;
-            const ownerTotalProgress = ownerObjectives.reduce((sum, obj) => sum + obj.progress, 0);
-            return { name: owner.name, progress: Math.round(ownerTotalProgress / ownerObjectives.length) };
-        }).filter(Boolean);
-        const allKrs = objectivesInCycle.flatMap(o => o.keyResults);
-        const krHealth = {
-            'On Track': allKrs.filter(kr => (kr.confidence || 'On Track') === 'On Track').length,
-            'At Risk': allKrs.filter(kr => kr.confidence === 'At Risk').length,
-            'Off Track': allKrs.filter(kr => kr.confidence === 'Off Track').length,
-            'Total': allKrs.length
-        };
-        const onTrackPercent = krHealth.Total > 0 ? (krHealth['On Track'] / krHealth.Total * 100) : 0;
-        const atRiskPercent = krHealth.Total > 0 ? (krHealth['At Risk'] / krHealth.Total * 100) : 0;
-        const offTrackPercent = krHealth.Total > 0 ? (krHealth['Off Track'] / krHealth.Total * 100) : 0;
-        view.innerHTML = `<div class="row g-4"><div class="col-12"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5><h2 class="display-4">${overallAverage}%</h2><div class="progress" style="height: 2rem;"><div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div></div></div></div></div><div class="col-md-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Progress by Owner</h5><ul class="list-group list-group-flush">${progressByOwner.map(owner => `<li class="list-group-item bg-transparent"><div class="d-flex justify-content-between"><span>${owner.name}</span><strong>${owner.progress}%</strong></div><div class="progress mt-1" style="height: 0.5rem;"><div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div></div></li>`).join('')}</ul></div></div></div><div class="col-md-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5><div class="d-flex justify-content-around align-items-center text-center mt-4"><div class="health-stat"><div class="stat-value text-success">${krHealth['On Track']}</div><div class="stat-label">On Track</div></div><div class="health-stat"><div class="stat-value text-warning">${krHealth['At Risk']}</div><div class="stat-label">At Risk</div></div><div class="health-stat"><div class="stat-value text-danger">${krHealth['Off Track']}</div><div class="stat-label">Off Track</div></div></div><div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;"><div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div><div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div><div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div></div></div></div></div></div>`;
+        const filterOptionsHtml = owners.map(owner => `<option value="${owner.id}" ${filterOwnerId === owner.id ? 'selected' : ''}>${owner.name}</option>`).join('');
+        let contentHtml;
+        if (!activeCycle) {
+            contentHtml = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
+        } else {
+            let objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
+            if (filterOwnerId !== 'all') {
+                objectivesInCycle = objectivesInCycle.filter(o => o.ownerId === filterOwnerId);
+            }
+            if (objectivesInCycle.length === 0) {
+                contentHtml = '<div class="alert alert-info">No objectives match the current filter in this cycle.</div>';
+            } else {
+                const totalProgress = objectivesInCycle.reduce((sum, obj) => sum + obj.progress, 0);
+                const overallAverage = Math.round(totalProgress / objectivesInCycle.length);
+                const allKrs = objectivesInCycle.flatMap(o => o.keyResults);
+                const krHealth = {
+                    'On Track': allKrs.filter(kr => (kr.confidence || 'On Track') === 'On Track').length,
+                    'At Risk': allKrs.filter(kr => kr.confidence === 'At Risk').length,
+                    'Off Track': allKrs.filter(kr => kr.confidence === 'Off Track').length,
+                    'Total': allKrs.length
+                };
+                const onTrackPercent = krHealth.Total > 0 ? (krHealth['On Track'] / krHealth.Total * 100) : 0;
+                const atRiskPercent = krHealth.Total > 0 ? (krHealth['At Risk'] / krHealth.Total * 100) : 0;
+                const offTrackPercent = krHealth.Total > 0 ? (krHealth['Off Track'] / krHealth.Total * 100) : 0;
+                const progressByOwner = owners.map(owner => {
+                    const ownerObjectives = project.objectives.filter(o => o.cycleId === activeCycle.id && o.ownerId === owner.id);
+                    if (ownerObjectives.length === 0) return null;
+                    const ownerTotalProgress = ownerObjectives.reduce((sum, obj) => sum + obj.progress, 0);
+                    return { name: owner.name, progress: Math.round(ownerTotalProgress / ownerObjectives.length) };
+                }).filter(Boolean);
+                const progressByOwnerWidget = filterOwnerId === 'all' ? `
+                    <div class="col-md-6">
+                        <div class="card dashboard-card">
+                            <div class="card-body">
+                                <h5 class="card-title text-muted">Progress by Owner</h5>
+                                <ul class="list-group list-group-flush">
+                                    ${progressByOwner.map(owner => `
+                                    <li class="list-group-item bg-transparent">
+                                        <div class="d-flex justify-content-between">
+                                            <span>${owner.name}</span>
+                                            <strong>${owner.progress}%</strong>
+                                        </div>
+                                        <div class="progress mt-1" style="height: 0.5rem;">
+                                            <div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div>
+                                        </div>
+                                    </li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>` : '';
+                contentHtml = `
+                    <div class="row g-4">
+                        <div class="col-12">
+                            <div class="card dashboard-card">
+                                <div class="card-body">
+                                    <h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5>
+                                    <h2 class="display-4">${overallAverage}%</h2>
+                                    <div class="progress" style="height: 2rem;">
+                                        <div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        ${progressByOwnerWidget}
+                        <div class="${filterOwnerId === 'all' ? 'col-md-6' : 'col-12'}">
+                            <div class="card dashboard-card">
+                                <div class="card-body">
+                                    <h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5>
+                                    <div class="d-flex justify-content-around align-items-center text-center mt-4">
+                                        <div class="health-stat"><div class="stat-value text-success">${krHealth['On Track']}</div><div class="stat-label">On Track</div></div>
+                                        <div class="health-stat"><div class="stat-value text-warning">${krHealth['At Risk']}</div><div class="stat-label">At Risk</div></div>
+                                        <div class="health-stat"><div class="stat-value text-danger">${krHealth['Off Track']}</div><div class="stat-label">Off Track</div></div>
+                                    </div>
+                                    <div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;">
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div>
+                                        <div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div>
+                                        <div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+        }
+        view.innerHTML = `
+            <div class="d-flex justify-content-end mb-3">
+                <div class="col-md-4">
+                    <label for="dashboard-filter" class="form-label">Filter by Owner</label>
+                    <select id="dashboard-filter" class="form-select">
+                        <option value="all" ${filterOwnerId === 'all' ? 'selected' : ''}>All Owners</option>
+                        ${filterOptionsHtml}
+                    </select>
+                </div>
+            </div>
+            ${contentHtml}`;
     }
 
     renderNavControls(project) {
