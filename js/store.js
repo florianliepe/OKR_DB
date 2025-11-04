@@ -87,6 +87,15 @@ class Store {
             this.saveAppData();
         }
     }
+
+    reorderObjectives(orderedIds) {
+        this._updateCurrentProject(p => {
+            const objectiveMap = new Map(p.objectives.map(obj => [obj.id, obj]));
+            const reorderedObjectives = orderedIds.map(id => objectiveMap.get(id)).filter(Boolean);
+            const unhandledObjectives = p.objectives.filter(obj => !orderedIds.includes(obj.id));
+            p.objectives = [...reorderedObjectives, ...unhandledObjectives];
+        });
+    }
     
     addCycle(data) { this._updateCurrentProject(p => p.cycles.push({ id: `cycle-${Date.now()}`, ...data, status: "Archived" })); }
     setActiveCycle(id) { this._updateCurrentProject(p => p.cycles.forEach(c => c.status = (c.id === id) ? 'Active' : 'Archived')); }
