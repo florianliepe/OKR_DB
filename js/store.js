@@ -132,6 +132,7 @@ class Store {
             const newKr = {
                 id: `kr-${Date.now()}`,
                 confidence: 'On Track',
+                notes: '',
                 ...data,
                 history: [{ date: new Date().toISOString().split('T')[0], value: data.currentValue }]
             };
