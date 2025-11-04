@@ -13,6 +13,11 @@ document.addEventListener('DOMContentLoaded', () => {
         currentViewListeners.push({ element, type, handler });
     }
 
+    function initializeTooltips() {
+        const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+        [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+    }
+
     function main() {
         cleanupListeners();
         const currentProject = store.getCurrentProject();
@@ -107,6 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 case '#cycles': ui.renderCyclesView(project); break;
                 case '#foundation': ui.renderFoundationView(project); break;
             }
+            initializeTooltips();
         };
 
         addListener(window, 'hashchange', router);
@@ -204,7 +210,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = {
                     title: document.getElementById('kr-title').value, startValue: document.getElementById('kr-start-value').value,
                     currentValue: document.getElementById('kr-current-value').value, targetValue: document.getElementById('kr-target-value').value,
-                    confidence: document.getElementById('kr-confidence').value
+                    confidence: document.getElementById('kr-confidence').value,
+                    notes: document.getElementById('kr-notes').value
                 };
                 if (krId) { store.updateKeyResult(objId, krId, data); ui.showToast('Key Result updated successfully!'); } 
                 else { store.addKeyResult(objId, data); ui.showToast('Key Result added successfully!'); }
@@ -269,6 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('kr-id').value = '';
                 document.getElementById('kr-start-value').value = 0;
                 document.getElementById('kr-confidence').value = 'On Track';
+                document.getElementById('kr-notes').value = '';
                 const objId = trigger.dataset.objectiveId;
                 document.getElementById('kr-objective-id').value = objId;
                 const krId = trigger.dataset.krId;
@@ -283,6 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.getElementById('kr-current-value').value = kr.currentValue;
                         document.getElementById('kr-target-value').value = kr.targetValue;
                         document.getElementById('kr-confidence').value = kr.confidence || 'On Track';
+                        document.getElementById('kr-notes').value = kr.notes || '';
                     }
                 } else { document.getElementById('kr-modal-title').textContent = 'Add Key Result'; document.getElementById('kr-current-value').value = 0; }
             }
