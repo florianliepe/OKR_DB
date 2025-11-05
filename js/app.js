@@ -14,19 +14,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initializeTooltips() {
-        // First, dispose of any existing tooltips to prevent memory leaks
-        const existingTooltips = bootstrap.Tooltip.getInstance(document.body);
-        if (existingTooltips) {
-             document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
-                const tooltip = bootstrap.Tooltip.getInstance(el);
-                if (tooltip) {
-                    tooltip.dispose();
-                }
-            });
-        }
-        // Then, initialize new ones
         const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
-        [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
+        [...tooltipTriggerList].forEach(tooltipTriggerEl => {
+            const tooltip = bootstrap.Tooltip.getInstance(tooltipTriggerEl);
+            if (tooltip) {
+                tooltip.dispose();
+            }
+        });
+        [...tooltipTriggerList].forEach(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
     }
 
     function main() {
@@ -42,7 +37,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function loadProjectSwitcher() {
         ui.renderProjectSwitcher(store.getProjects());
 
-        // Attach main listener to the app container for broader event delegation
         addListener(document.getElementById('app-container'), 'click', e => {
             const card = e.target.closest('.project-card');
             const deleteBtn = e.target.closest('.delete-project-btn');
@@ -316,4 +310,116 @@ document.addEventListener('DOMContentLoaded', () => {
         addListener(document, 'submit', e => {
             e.preventDefault();
             if (e.target.id === 'objective-form') {
-                const id = document.getElementB
+                const id = document.getElementById('objective-id').value;
+                const selectedOptions = document.getElementById('objective-depends-on').selectedOptions;
+                const dependsOn = Array.from(selectedOptions).map(opt => opt.value);
+                const data = {
+                    title: document.getElementById('objective-title').value, ownerId: document.getElementById('objective-owner').value,
+                    notes: document.getElementById('objective-notes').value, dependsOn: dependsOn,
+                    startDate: document.getElementById('objective-start-date').value,
+                    endDate: document.getElementById('objective-end-date').value
+                };
+                if(id) { store.updateObjective(id, data); ui.showToast('Objective updated successfully!'); } 
+                else { store.addObjective(data); ui.showToast('Objective added successfully!'); }
+                ui.hideModal('objectiveModal');
+                router();
+            }
+            if (e.target.id === 'kr-form') {
+                const objId = document.getElementById('kr-objective-id').value;
+                const krId = document.getElementById('kr-id').value;
+                const data = {
+                    title: document.getElementById('kr-title').value, startValue: document.getElementById('kr-start-value').value,
+                    currentValue: document.getElementById('kr-current-value').value, targetValue: document.getElementById('kr-target-value').value,
+                    confidence: document.getElementById('kr-confidence').value,
+                    notes: document.getElementById('kr-notes').value
+                };
+                if (krId) { store.updateKeyResult(objId, krId, data); ui.showToast('Key Result updated successfully!'); } 
+                else { store.addKeyResult(objId, data); ui.showToast('Key Result added successfully!'); }
+                ui.hideModal('keyResultModal');
+                router();
+            }
+            if (e.target.id === 'new-cycle-form') {
+                const data = { name: document.getElementById('cycle-name').value, startDate: document.getElementById('cycle-start-date').value, endDate: document.getElementById('cycle-end-date').value };
+                store.addCycle(data);
+                ui.showToast(`Cycle "${data.name}" added successfully.`);
+                e.target.reset();
+                router();
+                ui.renderNavControls(store.getCurrentProject());
+            }
+            if (e.target.id === 'foundation-form') {
+                const data = { mission: document.getElementById('foundation-mission').value, vision: document.getElementById('foundation-vision').value };
+                store.updateFoundation(data);
+                ui.showToast('Foundation statements updated.');
+                router();
+            }
+        });
+
+        addListener(document, 'show.bs.modal', e => {
+            const modal = e.target, trigger = e.relatedTarget;
+            if (!trigger) return;
+            if (modal.id === 'objectiveModal') {
+                project = store.getCurrentProject();
+                const form = document.getElementById('objective-form');
+                form.reset();
+                document.getElementById('objective-id').value = '';
+                document.getElementById('objective-notes').value = '';
+                const ownerSelect = document.getElementById('objective-owner');
+                const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
+                ownerSelect.innerHTML = owners.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
+                const objId = trigger.dataset.objectiveId;
+                const activeCycle = project.cycles.find(c => c.status === 'Active');
+                const possibleDependencies = project.objectives.filter(o => o.cycleId === activeCycle?.id && o.id !== objId);
+                const dependsOnSelect = document.getElementById('objective-depends-on');
+                dependsOnSelect.innerHTML = possibleDependencies.map(o => `<option value="${o.id}">${o.title}</option>`).join('');
+                if (objId) {
+                    document.getElementById('objective-modal-title').textContent = 'Edit Objective';
+                    const obj = project.objectives.find(o => o.id === objId);
+                    if (obj) {
+                        document.getElementById('objective-id').value = obj.id;
+                        document.getElementById('objective-title').value = obj.title;
+                        document.getElementById('objective-owner').value = obj.ownerId;
+                        document.getElementById('objective-notes').value = obj.notes || '';
+                        document.getElementById('objective-start-date').value = obj.startDate || '';
+                        document.getElementById('objective-end-date').value = obj.endDate || '';
+                        if (obj.dependsOn) {
+                            Array.from(dependsOnSelect.options).forEach(opt => {
+                                if (obj.dependsOn.includes(opt.value)) opt.selected = true;
+                            });
+                        }
+                    }
+                } else { document.getElementById('objective-modal-title').textContent = 'Add Objective'; }
+            }
+            if (modal.id === 'keyResultModal') {
+                project = store.getCurrentProject();
+                const form = document.getElementById('kr-form');
+                form.reset();
+                document.getElementById('kr-id').value = '';
+                document.getElementById('kr-start-value').value = 0;
+                document.getElementById('kr-confidence').value = 'On Track';
+                document.getElementById('kr-notes').value = '';
+                const objId = trigger.dataset.objectiveId;
+                document.getElementById('kr-objective-id').value = objId;
+                const krId = trigger.dataset.krId;
+                const objective = project.objectives.find(o => o.id === objId);
+                if (krId && objective) {
+                    document.getElementById('kr-modal-title').textContent = 'Edit Key Result';
+                    const kr = objective.keyResults.find(k => k.id === krId);
+                    if (kr) {
+                        document.getElementById('kr-id').value = kr.id;
+                        document.getElementById('kr-title').value = kr.title;
+                        document.getElementById('kr-start-value').value = kr.startValue;
+                        document.getElementById('kr-current-value').value = kr.currentValue;
+                        document.getElementById('kr-target-value').value = kr.targetValue;
+                        document.getElementById('kr-confidence').value = kr.confidence || 'On Track';
+                        document.getElementById('kr-notes').value = kr.notes || '';
+                    }
+                } else { document.getElementById('kr-modal-title').textContent = 'Add Key Result'; document.getElementById('kr-current-value').value = 0; }
+            }
+        });
+
+        router();
+        ui.renderNavControls(project);
+    }
+    
+    main();
+});
