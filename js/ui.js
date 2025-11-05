@@ -457,10 +457,24 @@ class UI {
         const highlightedTitle = this._highlightText(objective.title, searchTerm);
         const highlightedNotes = this._highlightText(objective.notes, searchTerm);
         const notesHtml = (objective.notes && objective.notes.trim() !== '') ? `<div class="obj-notes">${marked.parse(highlightedNotes)}</div>` : '';
+        
+        const dependsOnList = (objective.dependsOn || [])
+            .map(depId => allObjectivesInCycle.find(o => o.id === depId)?.title)
+            .filter(Boolean)
+            .join('<br>');
+        const dependsOnTooltip = dependsOnList ? `<strong>Depends On:</strong><br>${dependsOnList}` : '';
         const dependsOnCount = objective.dependsOn?.length || 0;
+        
+        const blocksList = allObjectivesInCycle
+            .filter(o => o.dependsOn?.includes(objective.id))
+            .map(o => o.title)
+            .join('<br>');
+        const blocksTooltip = blocksList ? `<strong>Blocks:</strong><br>${blocksList}` : '';
         const blocksCount = allObjectivesInCycle.filter(o => o.dependsOn?.includes(objective.id)).length;
-        const dependsOnBadge = dependsOnCount > 0 ? `<span class="badge bg-secondary ms-2"><i class="bi bi-arrow-down"></i> Depends on ${dependsOnCount}</span>` : '';
-        const blocksBadge = blocksCount > 0 ? `<span class="badge bg-warning text-dark ms-2"><i class="bi bi-arrow-up"></i> Blocks ${blocksCount}</span>` : '';
+        
+        const dependsOnBadge = dependsOnCount > 0 ? `<span class="badge bg-secondary ms-2" data-bs-toggle="tooltip" data-bs-html="true" title="${dependsOnTooltip}"><i class="bi bi-arrow-down"></i> Depends on ${dependsOnCount}</span>` : '';
+        const blocksBadge = blocksCount > 0 ? `<span class="badge bg-warning text-dark ms-2" data-bs-toggle="tooltip" data-bs-html="true" title="${blocksTooltip}"><i class="bi bi-arrow-up"></i> Blocks ${blocksCount}</span>` : '';
+        
         return `
             <div class="card okr-card" id="${objective.id}" draggable="true">
                 <div class="card-header d-flex justify-content-between align-items-center">
