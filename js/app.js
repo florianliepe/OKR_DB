@@ -143,6 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 case '#dashboard': ui.renderDashboardView(project); break;
                 case '#explorer': ui.renderExplorerView(project, document.getElementById('search-input').value); break;
                 case '#gantt': ui.renderGanttView(project); break;
+                case '#risk-board': ui.renderRiskBoardView(project); break;
                 case '#reporting': ui.renderReportingView(project); break;
                 case '#cycles': ui.renderCyclesView(project); break;
                 case '#foundation': ui.renderFoundationView(project); break;
