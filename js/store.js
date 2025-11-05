@@ -47,6 +47,7 @@ class Store {
             id: `proj-${Date.now()}`,
             name: initialData.projectName,
             companyName: initialData.projectName,
+            isArchived: false,
             foundation: { mission: initialData.mission, vision: initialData.vision },
             cycles: [{ id: `cycle-${Date.now()}`, name: "Initial Cycle", startDate: new Date().toISOString().split('T')[0], endDate: "", status: "Active" }],
             teams: initialData.teams.map((teamName, index) => ({ id: `team-${Date.now() + index}`, name: teamName })),
@@ -73,11 +74,28 @@ class Store {
         const newProject = {
             ...projectData,
             id: `proj-${Date.now()}`,
-            name: `${projectData.name} (Imported)`
+            name: `${projectData.name} (Imported)`,
+            isArchived: false
         };
         this.appData.projects.push(newProject);
         this.saveAppData();
         return newProject;
+    }
+
+    _updateProjectById(projectId, updateFn) {
+        const project = this.appData.projects.find(p => p.id === projectId);
+        if (project) {
+            updateFn(project);
+            this.saveAppData();
+        }
+    }
+
+    archiveProject(projectId) {
+        this._updateProjectById(projectId, p => p.isArchived = true);
+    }
+
+    unarchiveProject(projectId) {
+        this._updateProjectById(projectId, p => p.isArchived = false);
     }
 
     _updateCurrentProject(updateFn) {
