@@ -58,8 +58,26 @@ class UI {
     }
 
     renderProjectSwitcher(projects) {
+        const activeProjects = projects.filter(p => !p.isArchived);
+        const archivedProjects = projects.filter(p => p.isArchived);
+
+        const archivedSectionHtml = archivedProjects.length > 0 ? `
+            <div class="col-12 text-center mt-5">
+                <button class="btn btn-outline-secondary" id="toggle-archived-btn">
+                    Show ${archivedProjects.length} Archived Project(s)
+                </button>
+            </div>
+            <div id="archived-projects-container" class="col-12" style="display: none;">
+                <hr class="my-5">
+                <h4 class="text-center text-muted mb-4">Archived Projects</h4>
+                <div class="row g-4 justify-content-center">
+                    ${archivedProjects.map(p => this.renderProjectCard(p)).join('')}
+                </div>
+            </div>
+        ` : '';
+
         this.appContainer.innerHTML = `
-            <div class="container vh-100 d-flex flex-column justify-content-center">
+            <div class="container py-5">
                 <div class="text-center mb-5">
                     <h1 class="display-4"><i class="bi bi-bullseye"></i> OKR Master</h1>
                     <p class="lead">Select an OKR Project or create a new one.</p>
@@ -82,7 +100,10 @@ class UI {
                             </div>
                         </label>
                     </div>
-                    ${projects.map(p => this.renderProjectCard(p)).join('')}
+                    ${activeProjects.map(p => this.renderProjectCard(p)).join('')}
+                </div>
+                <div class="row justify-content-center">
+                    ${archivedSectionHtml}
                 </div>
             </div>`;
         this.modalContainer.innerHTML = this.renderNewProjectModal();
@@ -91,13 +112,20 @@ class UI {
     renderProjectCard(project) {
         const objectives = project.objectives || [];
         const cycles = project.cycles || [];
+        const archiveButton = project.isArchived 
+            ? `<button class="btn btn-sm btn-outline-secondary unarchive-project-btn" data-project-id="${project.id}" title="Unarchive"><i class="bi bi-box-arrow-up"></i></button>`
+            : `<button class="btn btn-sm btn-outline-warning archive-project-btn" data-project-id="${project.id}" title="Archive"><i class="bi bi-archive"></i></button>`;
+
         return `
             <div class="col-12 col-md-6 col-lg-4">
                 <div class="card project-card bg-dark text-white h-100" data-project-id="${project.id}">
                     <div class="card-body d-flex flex-column">
                         <div class="d-flex justify-content-between align-items-start">
                              <h5 class="card-title mb-0">${project.name}</h5>
-                             <button class="btn btn-sm btn-outline-danger delete-project-btn" data-project-id="${project.id}" data-project-name="${project.name}"><i class="bi bi-trash"></i></button>
+                             <div class="d-flex gap-2">
+                                ${archiveButton}
+                                <button class="btn btn-sm btn-outline-danger delete-project-btn" data-project-id="${project.id}" data-project-name="${project.name}" title="Delete"><i class="bi bi-trash"></i></button>
+                             </div>
                         </div>
                         <p class="card-text text-muted small flex-grow-1 mt-2">${objectives.length} objectives across ${cycles.length} cycles.</p>
                         <div class="text-end text-primary">Open Project <i class="bi bi-arrow-right-circle"></i></div>
