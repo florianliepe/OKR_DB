@@ -195,3 +195,16 @@ mark {
     margin: -1px 0; /* Adjust to sit between items */
     transition: all 0.2s ease;
 }
+
+/* Risk Board Styles */
+.risk-card {
+    border-left-width: 4px;
+}
+
+.risk-card.border-warning {
+    border-left-color: var(--bs-warning) !important;
+}
+
+.risk-card.border-danger {
+    border-left-color: var(--bs-danger) !important;
+}
