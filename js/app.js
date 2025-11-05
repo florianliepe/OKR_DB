@@ -42,14 +42,31 @@ document.addEventListener('DOMContentLoaded', () => {
         addListener(document.getElementById('project-list'), 'click', e => {
             const card = e.target.closest('.project-card');
             const deleteBtn = e.target.closest('.delete-project-btn');
+            const archiveBtn = e.target.closest('.archive-project-btn');
+            const unarchiveBtn = e.target.closest('.unarchive-project-btn');
+
             if (deleteBtn) {
                 e.stopPropagation();
                 const projectId = deleteBtn.dataset.projectId, projectName = deleteBtn.dataset.projectName;
-                if (confirm(`Are you sure you want to delete the project "${projectName}"? This action cannot be undone.`)) {
+                if (confirm(`Are you sure you want to PERMANENTLY DELETE the project "${projectName}"? This action cannot be undone.`)) {
                     store.deleteProject(projectId);
                     ui.showToast(`Project "${projectName}" deleted.`, 'danger');
                     main();
                 }
+                return;
+            }
+             if (archiveBtn) {
+                e.stopPropagation();
+                store.archiveProject(archiveBtn.dataset.projectId);
+                ui.showToast('Project archived.', 'info');
+                main();
+                return;
+            }
+            if (unarchiveBtn) {
+                e.stopPropagation();
+                store.unarchiveProject(unarchiveBtn.dataset.projectId);
+                ui.showToast('Project unarchived.');
+                main();
                 return;
             }
             if (card && card.id === 'create-new-project-card') {
@@ -59,6 +76,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 main();
             }
         });
+
+        const toggleBtn = document.getElementById('toggle-archived-btn');
+        if (toggleBtn) {
+            addListener(toggleBtn, 'click', () => {
+                const container = document.getElementById('archived-projects-container');
+                const isHidden = container.style.display === 'none';
+                container.style.display = isHidden ? 'block' : 'none';
+                toggleBtn.textContent = isHidden ? 'Hide Archived Projects' : `Show ${container.querySelectorAll('.project-card').length} Archived Project(s)`;
+            });
+        }
 
         const importInput = document.getElementById('import-project-input');
         if (importInput) {
