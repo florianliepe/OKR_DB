@@ -14,7 +14,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function initializeTooltips() {
-        // First, dispose of any existing tooltips to prevent memory leaks
         const existingTooltips = bootstrap.Tooltip.getInstance(document.body);
         if (existingTooltips) {
              document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
@@ -24,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
-        // Then, initialize new ones
         const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
         [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
     }
@@ -211,6 +209,77 @@ document.addEventListener('DOMContentLoaded', () => {
                 ui.renderDashboardView(project, filterOwnerId);
             }
         });
+
+        // --- Drag and Drop Logic ---
+        addListener(document.getElementById('explorer-view'), 'dragstart', e => {
+            if (e.target.classList.contains('okr-card')) {
+                e.target.classList.add('dragging');
+            }
+        });
+
+        addListener(document.getElementById('explorer-view'), 'dragend', e => {
+            if (e.target.classList.contains('okr-card')) {
+                e.target.classList.remove('dragging');
+            }
+        });
+
+        addListener(document.getElementById('explorer-view'), 'dragover', e => {
+            e.preventDefault();
+            const container = e.target.closest('.objective-list');
+            if (!container) return;
+
+            const existingPlaceholder = container.querySelector('.drag-over-placeholder');
+            if(existingPlaceholder) existingPlaceholder.remove();
+
+            const afterElement = getDragAfterElement(container, e.clientY);
+            const placeholder = document.createElement('div');
+            placeholder.classList.add('drag-over-placeholder');
+
+            if (afterElement == null) {
+                container.appendChild(placeholder);
+            } else {
+                container.insertBefore(placeholder, afterElement);
+            }
+        });
+
+        addListener(document.getElementById('explorer-view'), 'drop', e => {
+            e.preventDefault();
+            const container = e.target.closest('.objective-list');
+            const placeholder = container?.querySelector('.drag-over-placeholder');
+            if(placeholder) placeholder.remove();
+
+            const draggedElement = document.querySelector('.dragging');
+            if (!draggedElement || !container) return;
+            
+            let newOrderedIds = [...container.querySelectorAll('.okr-card:not(.dragging)')]
+                .map(el => el.id);
+
+            const afterElement = getDragAfterElement(container, e.clientY);
+
+            if (afterElement == null) {
+                newOrderedIds.push(draggedElement.id);
+            } else {
+                const insertIndex = newOrderedIds.indexOf(afterElement.id);
+                newOrderedIds.splice(insertIndex, 0, draggedElement.id);
+            }
+            
+            store.reorderObjectives(newOrderedIds);
+            router();
+            ui.showToast('Objectives reordered.');
+        });
+        
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.okr-card:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
         
         addListener(document, 'submit', e => {
             e.preventDefault();
