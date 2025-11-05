@@ -147,6 +147,7 @@ class UI {
                                 <li class="nav-item"><a href="#dashboard" class="nav-link text-white" data-view="dashboard-view"><i class="bi bi-bar-chart-line-fill me-2"></i> Dashboard</a></li>
                                 <li class="nav-item"><a href="#explorer" class="nav-link text-white" data-view="explorer-view"><i class="bi bi-columns-gap me-2"></i> OKR Explorer</a></li>
                                 <li class="nav-item"><a href="#gantt" class="nav-link text-white" data-view="gantt-view"><i class="bi bi-bar-chart-steps me-2"></i> Gantt</a></li>
+                                <li class="nav-item"><a href="#risk-board" class="nav-link text-white" data-view="risk-board-view"><i class="bi bi-exclamation-triangle-fill me-2"></i> Risk Board</a></li>
                                 <li class="nav-item"><a href="#reporting" class="nav-link text-white" data-view="reporting-view"><i class="bi bi-clock-history me-2"></i> Reporting</a></li>
                                 <li class="nav-item"><a href="#cycles" class="nav-link text-white" data-view="cycles-view"><i class="bi bi-arrow-repeat me-2"></i> Cycle Management</a></li>
                                 <li class="nav-item"><a href="#foundation" class="nav-link text-white" data-view="foundation-view"><i class="bi bi-flag-fill me-2"></i> North Star</a></li>
@@ -175,6 +176,7 @@ class UI {
                             <div id="dashboard-view" class="view-container" style="display:none;"></div>
                             <div id="explorer-view" class="view-container" style="display:none;"></div>
                             <div id="gantt-view" class="view-container" style="display:none;"></div>
+                            <div id="risk-board-view" class="view-container" style="display:none;"></div>
                             <div id="reporting-view" class="view-container" style="display:none;"></div>
                             <div id="cycles-view" class="view-container" style="display:none;"></div>
                             <div id="foundation-view" class="view-container" style="display:none;"></div>
@@ -195,7 +197,7 @@ class UI {
         const navControls = document.getElementById('nav-controls');
         const viewTitle = document.getElementById('view-title');
         
-        if (['explorer-view', 'dashboard-view', 'gantt-view', 'reporting-view'].includes(viewId)) {
+        if (['explorer-view', 'dashboard-view', 'gantt-view', 'risk-board-view', 'reporting-view'].includes(viewId)) {
             navControls.style.display = 'flex';
             document.getElementById('search-input').style.display = viewId === 'explorer-view' ? 'block' : 'none';
             document.querySelector('#nav-controls .dropdown').style.display = 'flex';
@@ -208,10 +210,65 @@ class UI {
             if (viewId === 'dashboard-view') viewTitle.textContent = 'Dashboard';
             if (viewId === 'explorer-view') viewTitle.textContent = 'OKR Explorer';
             if (viewId === 'gantt-view') viewTitle.textContent = 'Gantt Timeline';
+            if (viewId === 'risk-board-view') viewTitle.textContent = 'Risk Board';
             if (viewId === 'reporting-view') viewTitle.textContent = 'Reporting';
             if (viewId === 'cycles-view') viewTitle.textContent = 'Cycle Management';
             if (viewId === 'foundation-view') viewTitle.textContent = 'North Star (Mission & Vision)';
         }
+    }
+
+    renderRiskBoardView(project) {
+        const view = document.getElementById('risk-board-view');
+        if (!view) return;
+
+        const activeCycle = project.cycles.find(c => c.status === 'Active');
+        if (!activeCycle) {
+            view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
+            return;
+        }
+
+        const objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
+        const atRiskKrsByObjective = objectivesInCycle.map(obj => {
+            const riskyKrs = obj.keyResults.filter(kr => kr.confidence === 'At Risk' || kr.confidence === 'Off Track');
+            return {
+                objective: obj,
+                riskyKrs: riskyKrs
+            };
+        }).filter(group => group.riskyKrs.length > 0);
+
+        if (atRiskKrsByObjective.length === 0) {
+            view.innerHTML = '<div class="alert alert-success text-center"><i class="bi bi-check-circle-fill fs-2"></i><h4 class="alert-heading mt-2">All Clear!</h4><p>There are no Key Results currently "At Risk" or "Off Track" in this cycle.</p></div>';
+            return;
+        }
+
+        view.innerHTML = atRiskKrsByObjective.map(group => {
+            return `
+                <div class="card okr-card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <a href="#explorer" class="text-decoration-none" onclick="document.getElementById('${group.objective.id}').scrollIntoView({ behavior: 'smooth', block: 'center' });">
+                                ${group.objective.title}
+                            </a>
+                            <small class="text-muted ms-2">(${project.teams.find(t => t.id === group.objective.ownerId)?.name || project.companyName})</small>
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="key-results-list">
+                            ${group.riskyKrs.map(kr => {
+                                const borderColor = kr.confidence === 'At Risk' ? 'border-warning' : 'border-danger';
+                                return `
+                                    <div class="card risk-card ${borderColor} bg-dark mb-2">
+                                        <div class="card-body">
+                                            ${this.renderKeyResult(kr, group.objective.id)}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     renderReportingView(project, reportDate = null) {
