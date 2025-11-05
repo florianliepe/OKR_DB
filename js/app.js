@@ -36,7 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function loadProjectSwitcher() {
         ui.renderProjectSwitcher(store.getProjects());
-
         addListener(document.getElementById('app-container'), 'click', e => {
             const card = e.target.closest('.project-card');
             const deleteBtn = e.target.closest('.delete-project-btn');
