@@ -359,19 +359,25 @@ class UI {
         });
     }
 
-    renderDashboardView(project, filterOwnerId = 'all') {
+    renderDashboardView(project, filterOwnerId = 'all', filterResponsible = 'all') {
         const view = document.getElementById('dashboard-view');
         if (!view) return;
         const activeCycle = project.cycles.find(c => c.status === 'Active');
         const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
-        const filterOptionsHtml = owners.map(owner => `<option value="${owner.id}" ${filterOwnerId === owner.id ? 'selected' : ''}>${owner.name}</option>`).join('');
+        const ownerFilterOptionsHtml = owners.map(owner => `<option value="${owner.id}" ${filterOwnerId === owner.id ? 'selected' : ''}>${owner.name}</option>`).join('');
         let contentHtml;
         if (!activeCycle) {
             contentHtml = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
         } else {
             let objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
+            const responsibles = [...new Set(objectivesInCycle.map(o => o.responsible).filter(Boolean))];
+            const responsibleFilterOptionsHtml = responsibles.map(r => `<option value="${r}" ${filterResponsible === r ? 'selected' : ''}>${r}</option>`).join('');
+
             if (filterOwnerId !== 'all') {
                 objectivesInCycle = objectivesInCycle.filter(o => o.ownerId === filterOwnerId);
+            }
+            if (filterResponsible !== 'all') {
+                objectivesInCycle = objectivesInCycle.filter(o => o.responsible === filterResponsible);
             }
             if (objectivesInCycle.length === 0) {
                 contentHtml = '<div class="alert alert-info">No objectives match the current filter in this cycle.</div>';
@@ -394,7 +400,7 @@ class UI {
                     const ownerTotalProgress = ownerObjectives.reduce((sum, obj) => sum + obj.progress, 0);
                     return { name: owner.name, progress: Math.round(ownerTotalProgress / ownerObjectives.length) };
                 }).filter(Boolean);
-                const progressByOwnerWidget = filterOwnerId === 'all' ? `
+                const progressByOwnerWidget = (filterOwnerId === 'all' && filterResponsible === 'all') ? `
                     <div class="col-md-6">
                         <div class="card dashboard-card">
                             <div class="card-body">
@@ -428,7 +434,7 @@ class UI {
                             </div>
                         </div>
                         ${progressByOwnerWidget}
-                        <div class="${filterOwnerId === 'all' ? 'col-md-6' : 'col-12'}">
+                        <div class="${(filterOwnerId === 'all' && filterResponsible === 'all') ? 'col-md-6' : 'col-12'}">
                             <div class="card dashboard-card">
                                 <div class="card-body">
                                     <h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5>
@@ -449,12 +455,19 @@ class UI {
             }
         }
         view.innerHTML = `
-            <div class="d-flex justify-content-end mb-3">
+            <div class="row g-3 justify-content-end mb-3">
                 <div class="col-md-4">
-                    <label for="dashboard-filter" class="form-label">Filter by Owner</label>
-                    <select id="dashboard-filter" class="form-select">
+                    <label for="dashboard-filter-owner" class="form-label">Filter by Owner</label>
+                    <select id="dashboard-filter-owner" class="form-select">
                         <option value="all" ${filterOwnerId === 'all' ? 'selected' : ''}>All Owners</option>
-                        ${filterOptionsHtml}
+                        ${ownerFilterOptionsHtml}
+                    </select>
+                </div>
+                 <div class="col-md-4">
+                    <label for="dashboard-filter-responsible" class="form-label">Filter by Responsible</label>
+                    <select id="dashboard-filter-responsible" class="form-select">
+                        <option value="all" ${filterResponsible === 'all' ? 'selected' : ''}>All Responsible</option>
+                        ${responsibleFilterOptionsHtml}
                     </select>
                 </div>
             </div>
@@ -479,16 +492,22 @@ class UI {
         cycleSelectorList.innerHTML = project.cycles.map(cycle => `<li><a class="dropdown-item ${cycle.id === activeCycle?.id ? 'active' : ''}" href="#" data-cycle-id="${cycle.id}">${cycle.name}</a></li>`).join('');
     }
 
-    renderExplorerView(project, searchTerm = '') {
+    renderExplorerView(project, searchTerm = '', filterResponsible = 'all') {
         const view = document.getElementById('explorer-view');
         if (!view) return;
         const activeCycle = project.cycles.find(c => c.status === 'Active');
         if (!activeCycle) { view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>'; return; }
         let objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
+        const responsibles = [...new Set(objectivesInCycle.map(o => o.responsible).filter(Boolean))];
+        const responsibleFilterOptionsHtml = responsibles.map(r => `<option value="${r}" ${filterResponsible === r ? 'selected' : ''}>${r}</option>`).join('');
+
         let objectivesToRender = objectivesInCycle;
+        if (filterResponsible !== 'all') {
+            objectivesToRender = objectivesToRender.filter(o => o.responsible === filterResponsible);
+        }
         if (searchTerm) {
             const lowercasedTerm = searchTerm.toLowerCase();
-            objectivesToRender = objectivesInCycle.filter(o => o.title.toLowerCase().includes(lowercasedTerm) || (o.notes && o.notes.toLowerCase().includes(lowercasedTerm)) || o.keyResults.some(kr => kr.title.toLowerCase().includes(lowercasedTerm)));
+            objectivesToRender = objectivesToRender.filter(o => o.title.toLowerCase().includes(lowercasedTerm) || (o.notes && o.notes.toLowerCase().includes(lowercasedTerm)) || o.keyResults.some(kr => kr.title.toLowerCase().includes(lowercasedTerm)));
         }
         const companyObjectives = objectivesToRender.filter(o => o.ownerId === 'company');
         let html = this.renderObjectiveGroup(project.companyName, companyObjectives, project, objectivesInCycle, searchTerm);
@@ -496,7 +515,25 @@ class UI {
             const teamObjectives = objectivesToRender.filter(o => o.ownerId === team.id);
             html += this.renderObjectiveGroup(team.name, teamObjectives, project, objectivesInCycle, searchTerm);
         });
-        if (!html && searchTerm) { view.innerHTML = `<div class="text-center p-5"><h3>No results for "${searchTerm}".</h3></div>`; } else if (!html) { view.innerHTML = '<div class="text-center p-5 bg-body-secondary rounded"><h3>No Objectives for this Cycle</h3><p>Click "Add Objective" to begin.</p></div>'; } else { view.innerHTML = html; }
+
+        const filterHtml = `
+            <div class="d-flex justify-content-end mb-3">
+                <div class="col-md-4">
+                    <label for="explorer-filter-responsible" class="form-label">Filter by Responsible</label>
+                    <select id="explorer-filter-responsible" class="form-select">
+                        <option value="all">All Responsible</option>
+                        ${responsibleFilterOptionsHtml}
+                    </select>
+                </div>
+            </div>`;
+
+        if (!html && (searchTerm || filterResponsible !== 'all')) { 
+            view.innerHTML = filterHtml + `<div class="text-center p-5"><h3>No results for the current filter.</h3></div>`; 
+        } else if (!html) { 
+            view.innerHTML = filterHtml + '<div class="text-center p-5 bg-body-secondary rounded"><h3>No Objectives for this Cycle</h3><p>Click "Add Objective" to begin.</p></div>'; 
+        } else { 
+            view.innerHTML = filterHtml + html; 
+        }
     }
 
     renderObjectiveGroup(groupName, objectives, project, allObjectivesInCycle, searchTerm) {
@@ -514,24 +551,16 @@ class UI {
         const highlightedTitle = this._highlightText(objective.title, searchTerm);
         const highlightedNotes = this._highlightText(objective.notes, searchTerm);
         const notesHtml = (objective.notes && objective.notes.trim() !== '') ? `<div class="obj-notes">${marked.parse(highlightedNotes)}</div>` : '';
-        
-        const dependsOnList = (objective.dependsOn || [])
-            .map(depId => allObjectivesInCycle.find(o => o.id === depId)?.title)
-            .filter(Boolean)
-            .join('<br>');
+        const dependsOnList = (objective.dependsOn || []).map(depId => allObjectivesInCycle.find(o => o.id === depId)?.title).filter(Boolean).join('<br>');
         const dependsOnTooltip = dependsOnList ? `<strong>Depends On:</strong><br>${dependsOnList}` : '';
         const dependsOnCount = objective.dependsOn?.length || 0;
-        
-        const blocksList = allObjectivesInCycle
-            .filter(o => o.dependsOn?.includes(objective.id))
-            .map(o => o.title)
-            .join('<br>');
+        const blocksList = allObjectivesInCycle.filter(o => o.dependsOn?.includes(objective.id)).map(o => o.title).join('<br>');
         const blocksTooltip = blocksList ? `<strong>Blocks:</strong><br>${blocksList}` : '';
         const blocksCount = allObjectivesInCycle.filter(o => o.dependsOn?.includes(objective.id)).length;
-        
         const dependsOnBadge = dependsOnCount > 0 ? `<span class="badge bg-secondary ms-2" data-bs-toggle="tooltip" data-bs-html="true" title="${dependsOnTooltip}"><i class="bi bi-arrow-down"></i> Depends on ${dependsOnCount}</span>` : '';
         const blocksBadge = blocksCount > 0 ? `<span class="badge bg-warning text-dark ms-2" data-bs-toggle="tooltip" data-bs-html="true" title="${blocksTooltip}"><i class="bi bi-arrow-up"></i> Blocks ${blocksCount}</span>` : '';
-        
+        const responsibleHtml = objective.responsible ? `<span class="responsible-person ms-2"><i class="bi bi-person-fill"></i> ${objective.responsible}</span>` : '';
+
         return `
             <div class="card okr-card" id="${objective.id}" draggable="true">
                 <div class="card-header d-flex justify-content-between align-items-center">
@@ -539,6 +568,7 @@ class UI {
                         <h5 class="mb-0 d-inline">${highlightedTitle}</h5>
                         ${dependsOnBadge}
                         ${blocksBadge}
+                        ${responsibleHtml}
                     </div>
                     <div class="d-flex gap-2">
                         <button class="btn btn-sm btn-outline-secondary edit-obj-btn" data-bs-toggle="modal" data-bs-target="#objectiveModal" data-objective-id="${objective.id}"><i class="bi bi-pencil"></i></button>
@@ -728,6 +758,7 @@ class UI {
                                 <div class="mb-3"><label for="objective-title" class="form-label">Objective Title</label><input type="text" class="form-control" id="objective-title" required></div>
                                 <div class="row mb-3">
                                     <div class="col-md-6"><label for="objective-owner" class="form-label">Owner</label><select class="form-select" id="objective-owner" required></select></div>
+                                    <div class="col-md-6"><label for="objective-responsible" class="form-label">Responsible Person (optional)</label><input type="text" class="form-control" id="objective-responsible" placeholder="e.g., Jane Doe"></div>
                                 </div>
                                 <div class="row mb-3">
                                     <div class="col-md-6"><label for="objective-start-date" class="form-label">Start Date (Optional)</label><input type="date" class="form-control" id="objective-start-date"></div>
