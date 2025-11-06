@@ -133,6 +133,7 @@ class Store {
             progress: 0, 
             keyResults: [], 
             notes: data.notes || '', 
+            responsible: data.responsible || '',
             dependsOn: data.dependsOn || [],
             startDate: data.startDate || '',
             endDate: data.endDate || ''
