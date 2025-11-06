@@ -358,19 +358,23 @@ class UI {
         const activeCycle = project.cycles.find(c => c.status === 'Active');
         const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
         const ownerFilterOptionsHtml = owners.map(owner => `<option value="${owner.id}" ${filterOwnerId === owner.id ? 'selected' : ''}>${owner.name}</option>`).join('');
+        
         let contentHtml;
         if (!activeCycle) {
             contentHtml = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
         } else {
             let objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
+            
             const responsibles = [...new Set(objectivesInCycle.map(o => o.responsible).filter(Boolean))];
             const responsibleFilterOptionsHtml = responsibles.map(r => `<option value="${r}" ${filterResponsible === r ? 'selected' : ''}>${r}</option>`).join('');
+
             if (filterOwnerId !== 'all') {
                 objectivesInCycle = objectivesInCycle.filter(o => o.ownerId === filterOwnerId);
             }
             if (filterResponsible !== 'all') {
                 objectivesInCycle = objectivesInCycle.filter(o => o.responsible === filterResponsible);
             }
+
             if (objectivesInCycle.length === 0) {
                 contentHtml = '<div class="alert alert-info">No objectives match the current filter in this cycle.</div>';
             } else {
@@ -386,12 +390,14 @@ class UI {
                 const onTrackPercent = krHealth.Total > 0 ? (krHealth['On Track'] / krHealth.Total * 100) : 0;
                 const atRiskPercent = krHealth.Total > 0 ? (krHealth['At Risk'] / krHealth.Total * 100) : 0;
                 const offTrackPercent = krHealth.Total > 0 ? (krHealth['Off Track'] / krHealth.Total * 100) : 0;
+
                 const progressByOwner = owners.map(owner => {
                     const ownerObjectives = project.objectives.filter(o => o.cycleId === activeCycle.id && o.ownerId === owner.id);
                     if (ownerObjectives.length === 0) return null;
                     const ownerTotalProgress = ownerObjectives.reduce((sum, obj) => sum + obj.progress, 0);
                     return { name: owner.name, progress: Math.round(ownerTotalProgress / ownerObjectives.length) };
                 }).filter(Boolean);
+
                 const progressByOwnerWidget = (filterOwnerId === 'all' && filterResponsible === 'all') ? `
                     <div class="col-md-6">
                         <div class="card dashboard-card">
@@ -404,6 +410,7 @@ class UI {
                             </div>
                         </div>
                     </div>` : '';
+
                 contentHtml = `
                     <div class="row g-4">
                         <div class="col-12">
@@ -438,6 +445,7 @@ class UI {
                     </div>`;
             }
         }
+        
         view.innerHTML = `
             <div class="row g-3 justify-content-end mb-3">
                 <div class="col-md-4">
