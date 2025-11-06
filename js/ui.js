@@ -60,7 +60,6 @@ class UI {
     renderProjectSwitcher(projects) {
         const activeProjects = projects.filter(p => !p.isArchived);
         const archivedProjects = projects.filter(p => p.isArchived);
-
         const archivedSectionHtml = archivedProjects.length > 0 ? `
             <div class="col-12 text-center mt-5">
                 <button class="btn btn-outline-secondary" id="toggle-archived-btn">
@@ -75,7 +74,6 @@ class UI {
                 </div>
             </div>
         ` : '';
-
         this.appContainer.innerHTML = `
             <div class="container py-5">
                 <div class="text-center mb-5">
@@ -115,7 +113,6 @@ class UI {
         const archiveButton = project.isArchived 
             ? `<button class="btn btn-sm btn-outline-secondary unarchive-project-btn" data-project-id="${project.id}" title="Unarchive"><i class="bi bi-box-arrow-up"></i></button>`
             : `<button class="btn btn-sm btn-outline-warning archive-project-btn" data-project-id="${project.id}" title="Archive"><i class="bi bi-archive"></i></button>`;
-
         return `
             <div class="col-12 col-md-6 col-lg-4">
                 <div class="card project-card bg-dark text-white h-100" data-project-id="${project.id}">
@@ -220,13 +217,11 @@ class UI {
     renderRiskBoardView(project) {
         const view = document.getElementById('risk-board-view');
         if (!view) return;
-
         const activeCycle = project.cycles.find(c => c.status === 'Active');
         if (!activeCycle) {
             view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
             return;
         }
-
         const objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
         const atRiskKrsByObjective = objectivesInCycle.map(obj => {
             const riskyKrs = obj.keyResults.filter(kr => kr.confidence === 'At Risk' || kr.confidence === 'Off Track');
@@ -235,12 +230,10 @@ class UI {
                 riskyKrs: riskyKrs
             };
         }).filter(group => group.riskyKrs.length > 0);
-
         if (atRiskKrsByObjective.length === 0) {
             view.innerHTML = '<div class="alert alert-success text-center"><i class="bi bi-check-circle-fill fs-2"></i><h4 class="alert-heading mt-2">All Clear!</h4><p>There are no Key Results currently "At Risk" or "Off Track" in this cycle.</p></div>';
             return;
         }
-
         view.innerHTML = atRiskKrsByObjective.map(group => {
             return `
                 <div class="card okr-card mb-4">
@@ -372,7 +365,6 @@ class UI {
             let objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
             const responsibles = [...new Set(objectivesInCycle.map(o => o.responsible).filter(Boolean))];
             const responsibleFilterOptionsHtml = responsibles.map(r => `<option value="${r}" ${filterResponsible === r ? 'selected' : ''}>${r}</option>`).join('');
-
             if (filterOwnerId !== 'all') {
                 objectivesInCycle = objectivesInCycle.filter(o => o.ownerId === filterOwnerId);
             }
@@ -407,15 +399,7 @@ class UI {
                                 <h5 class="card-title text-muted">Progress by Owner</h5>
                                 <ul class="list-group list-group-flush">
                                     ${progressByOwner.map(owner => `
-                                    <li class="list-group-item bg-transparent">
-                                        <div class="d-flex justify-content-between">
-                                            <span>${owner.name}</span>
-                                            <strong>${owner.progress}%</strong>
-                                        </div>
-                                        <div class="progress mt-1" style="height: 0.5rem;">
-                                            <div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div>
-                                        </div>
-                                    </li>`).join('')}
+                                    <li class="list-group-item bg-transparent"><div class="d-flex justify-content-between"><span>${owner.name}</span><strong>${owner.progress}%</strong></div><div class="progress mt-1" style="height: 0.5rem;"><div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div></div></li>`).join('')}
                                 </ul>
                             </div>
                         </div>
