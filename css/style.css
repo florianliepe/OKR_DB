@@ -1,209 +1,217 @@
-class Store {
-    constructor() {
-        this.STORAGE_KEY = 'okrAppMultiProject';
-        this.appData = this.loadAppData();
-        this.migrateLegacyData();
-    }
+:root {
+    --bs-progress-height: 1rem;
+    --sidebar-width: 280px;
+}
 
-    loadAppData() {
-        const savedData = localStorage.getItem(this.STORAGE_KEY);
-        if (savedData) {
-            return JSON.parse(savedData);
-        }
-        return { currentProjectId: null, projects: [] };
-    }
+body {
+    background-color: #212529;
+    color: var(--bs-body-color);
+}
 
-    saveAppData() {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.appData));
-    }
-    
-    migrateLegacyData() {
-        const legacyData = localStorage.getItem('okrAppData');
-        if (legacyData) {
-            console.log('Legacy data found. Migrating...');
-            const project = JSON.parse(legacyData);
-            const newProject = {
-                id: `proj-${Date.now()}`,
-                name: project.companyName || 'Migrated Project',
-                ...project
-            };
-            this.appData.projects.push(newProject);
-            this.appData.currentProjectId = this.appData.projects[0].id;
-            this.saveAppData();
-            localStorage.removeItem('okrAppData');
-            console.log('Migration complete.');
-        }
-    }
+.vh-100 {
+    height: 100vh;
+}
 
-    getProjects() { return this.appData.projects; }
-    setCurrentProjectId(projectId) { this.appData.currentProjectId = projectId; this.saveAppData(); }
-    getCurrentProject() {
-        if (!this.appData.currentProjectId) return null;
-        return this.appData.projects.find(p => p.id === this.appData.currentProjectId);
-    }
-    
-    createNewProject(initialData) {
-        const newProject = {
-            id: `proj-${Date.now()}`,
-            name: initialData.projectName,
-            companyName: initialData.projectName,
-            isArchived: false,
-            foundation: { mission: initialData.mission, vision: initialData.vision },
-            cycles: [{ id: `cycle-${Date.now()}`, name: "Initial Cycle", startDate: new Date().toISOString().split('T')[0], endDate: "", status: "Active" }],
-            teams: initialData.teams.map((teamName, index) => ({ id: `team-${Date.now() + index}`, name: teamName })),
-            objectives: [], dependencies: []
-        };
-        this.appData.projects.push(newProject);
-        this.saveAppData();
-        return newProject;
-    }
+#sidebar-col {
+    width: var(--sidebar-width);
+}
 
-    deleteProject(projectId) {
-        this.appData.projects = this.appData.projects.filter(p => p.id !== projectId);
-        if (this.appData.currentProjectId === projectId) {
-            this.appData.currentProjectId = null;
-        }
-        this.saveAppData();
-    }
+.main-content-col {
+    overflow: hidden;
+}
 
-    importProject(projectData) {
-        if (!projectData || !projectData.name || !projectData.cycles) {
-            console.error('Invalid project data for import.');
-            return null;
-        }
-        const newProject = {
-            ...projectData,
-            id: `proj-${Date.now()}`,
-            name: `${projectData.name} (Imported)`,
-            isArchived: false
-        };
-        this.appData.projects.push(newProject);
-        this.saveAppData();
-        return newProject;
-    }
+.top-bar {
+    background-color: #212529;
+    border-bottom: 1px solid var(--bs-border-color);
+}
 
-    _updateProjectById(projectId, updateFn) {
-        const project = this.appData.projects.find(p => p.id === projectId);
-        if (project) {
-            updateFn(project);
-            this.saveAppData();
-        }
-    }
+.content-scroll-area {
+    flex-grow: 1;
+    overflow-y: auto;
+}
 
-    archiveProject(projectId) {
-        this._updateProjectById(projectId, p => p.isArchived = true);
-    }
+.nav-pills .nav-link.active, .nav-pills .show>.nav-link {
+    background-color: #0d6efd;
+}
 
-    unarchiveProject(projectId) {
-        this._updateProjectById(projectId, p => p.isArchived = false);
-    }
+.okr-card {
+    background-color: #343a40;
+    border: 1px solid #495057;
+}
 
-    _updateCurrentProject(updateFn) {
-        const project = this.getCurrentProject();
-        if (project) {
-            updateFn(project);
-            this.saveAppData();
-        }
-    }
+.obj-notes {
+    background-color: rgba(0,0,0,0.1);
+    border-left: 3px solid #0d6efd;
+    padding: 0.5rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: var(--bs-secondary-color);
+}
+.obj-notes p:last-child {
+    margin-bottom: 0;
+}
+.obj-notes ul, .obj-notes ol {
+    padding-left: 1.2rem;
+}
 
-    reorderObjectives(orderedIds) {
-        this._updateCurrentProject(p => {
-            const objectiveMap = new Map(p.objectives.map(obj => [obj.id, obj]));
-            const reorderedObjectives = orderedIds.map(id => objectiveMap.get(id)).filter(Boolean);
-            const unhandledObjectives = p.objectives.filter(obj => !orderedIds.includes(obj.id));
-            p.objectives = [...reorderedObjectives, ...unhandledObjectives];
-        });
-    }
-    
-    addCycle(data) { this._updateCurrentProject(p => p.cycles.push({ id: `cycle-${Date.now()}`, ...data, status: "Archived" })); }
-    setActiveCycle(id) { this._updateCurrentProject(p => p.cycles.forEach(c => c.status = (c.id === id) ? 'Active' : 'Archived')); }
-    deleteCycle(id) { this._updateCurrentProject(p => { 
-        if (p.cycles.length <= 1 || p.cycles.find(c => c.id === id)?.status === 'Active') return;
-        p.cycles = p.cycles.filter(c => c.id !== id);
-        p.objectives = p.objectives.filter(o => o.cycleId !== id);
-    }); }
-    updateFoundation(data) { this._updateCurrentProject(p => p.foundation = data); }
-    addObjective(data) { this._updateCurrentProject(p => {
-        const activeCycle = p.cycles.find(c => c.status === 'Active');
-        if (!activeCycle) return;
-        p.objectives.push({ 
-            id: `obj-${Date.now()}`, 
-            cycleId: activeCycle.id, 
-            ...data, 
-            progress: 0, 
-            keyResults: [], 
-            notes: data.notes || '', 
-            responsible: data.responsible || '',
-            dependsOn: data.dependsOn || [],
-            startDate: data.startDate || '',
-            endDate: data.endDate || ''
-        });
-    }); }
-    updateObjective(id, data) { this._updateCurrentProject(p => {
-        const obj = p.objectives.find(o => o.id === id);
-        if (obj) Object.assign(obj, data);
-    });}
-    deleteObjective(id) {
-        this._updateCurrentProject(p => {
-            p.objectives = p.objectives.filter(o => o.id !== id);
-            p.objectives.forEach(obj => {
-                if (obj.dependsOn && obj.dependsOn.includes(id)) {
-                    obj.dependsOn = obj.dependsOn.filter(depId => depId !== id);
-                }
-            });
-        });
-    }
-    
-    addKeyResult(objId, data) { this._updateCurrentProject(p => {
-        const obj = p.objectives.find(o => o.id === objId);
-        if (obj) {
-            const newKr = {
-                id: `kr-${Date.now()}`,
-                confidence: 'On Track',
-                notes: '',
-                ...data,
-                history: [{ date: new Date().toISOString().split('T')[0], value: data.currentValue }]
-            };
-            obj.keyResults.push(newKr);
-            obj.progress = this.calculateProgress(obj);
-        }
-    });}
-    
-    updateKeyResult(objId, krId, data) { this._updateCurrentProject(p => {
-        const obj = p.objectives.find(o => o.id === objId);
-        if (obj) {
-            const kr = obj.keyResults.find(k => k.id === krId);
-            if(kr) {
-                if (!kr.history) kr.history = [];
-                const hasValueChanged = String(kr.currentValue) !== String(data.currentValue);
-                if (hasValueChanged) {
-                    kr.history.push({
-                        date: new Date().toISOString().split('T')[0],
-                        value: data.currentValue
-                    });
-                }
-                Object.assign(kr, data);
-            }
-            obj.progress = this.calculateProgress(obj);
-        }
-    });}
+.kr-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #495057;
+}
+.key-results-list > .kr-item:last-child {
+    border-bottom: none;
+}
 
-    deleteKeyResult(objId, krId) { this._updateCurrentProject(p => {
-        const obj = p.objectives.find(o => o.id === objId);
-        if (obj) {
-            obj.keyResults = obj.keyResults.filter(k => k.id !== krId);
-            obj.progress = this.calculateProgress(obj);
-        }
-    });}
-    getOwnerName(ownerId) { const p = this.getCurrentProject(); if (!p) return ''; if(ownerId === 'company') return p.companyName; const team = p.teams.find(t => t.id === ownerId); return team ? team.name : 'Unknown'; }
-    calculateProgress(objective) {
-        if (!objective.keyResults || objective.keyResults.length === 0) return 0;
-        const total = objective.keyResults.reduce((sum, kr) => {
-            const start = Number(kr.startValue), target = Number(kr.targetValue), current = Number(kr.currentValue);
-            if (target === start) return sum + 100;
-            kr.progress = Math.max(0, Math.min(100, ((current - start) / (target - start)) * 100));
-            return sum + kr.progress;
-        }, 0);
-        return Math.round(total / objective.keyResults.length);
-    }
+.kr-title {
+    flex-grow: 1;
+    font-size: 0.9rem;
+}
+
+.kr-progress-container {
+    width: 200px;
+    flex-shrink: 0;
+}
+
+.kr-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.progress-bar-label {
+    font-weight: bold;
+    color: white;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+    font-size: 0.8rem;
+}
+
+.team-header {
+    border-bottom: 2px solid #0d6efd;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.project-card {
+    cursor: pointer;
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+.project-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3);
+}
+
+.sparkline-placeholder,
+.sparkline {
+    width: 100%;
+    height: 20px;
+    margin-bottom: 2px;
+}
+
+.sparkline polyline {
+    fill: none;
+    stroke: var(--bs-info);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+/* Dashboard Styles */
+.dashboard-card {
+    background-color: #343a40;
+    border: 1px solid #495057;
+}
+
+.health-stat .stat-value {
+    font-size: 2.5rem;
+    font-weight: 300;
+}
+.health-stat .stat-label {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+/* Toast Container Style */
+#toast-container {
+    z-index: 1100; /* Ensure it's above modals (Bootstrap modal z-index is 1055) */
+}
+
+/* Search Highlight Style */
+mark {
+    background-color: #0d6efd;
+    color: white;
+    padding: 0.1em 0.2em;
+    border-radius: 3px;
+}
+
+/* Gantt Chart Styles */
+#gantt-view {
+    overflow-x: auto; /* Allow horizontal scrolling for the chart */
+}
+
+.gantt .bar-label {
+    fill: white !important;
+}
+
+.gantt .bar-progress {
+    fill: #0d6efd !important;
+}
+
+.gantt .grid-header, .gantt .grid-row, .gantt .grid-background {
+    fill: #212529 !important;
+}
+
+.gantt .grid-row:nth-child(even) {
+    fill: #2c3034 !important;
+}
+
+.gantt .tick, .gantt .grid-header .grid-row, .gantt .grid-row .grid-cell {
+    stroke: #495057 !important;
+}
+
+.gantt .today-highlight {
+    fill: #0d6efd !important;
+    opacity: 0.2;
+}
+
+.gantt .upper-text, .gantt .lower-text {
+    fill: #adb5bd !important;
+}
+
+.gantt .bar-wrapper.active .bar {
+    stroke: white;
+}
+
+/* Drag and Drop Styles */
+.okr-card.dragging {
+    opacity: 0.5;
+}
+
+.drag-over-placeholder {
+    height: 2px;
+    background-color: #0d6efd;
+    margin: -1px 0; /* Adjust to sit between items */
+    transition: all 0.2s ease;
+}
+
+/* Risk Board Styles */
+.risk-card {
+    border-left-width: 4px;
+}
+
+.risk-card.border-warning {
+    border-left-color: var(--bs-warning) !important;
+}
+
+.risk-card.border-danger {
+    border-left-color: var(--bs-danger) !important;
+}
+
+/* Responsible Person Style */
+.responsible-person {
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: var(--bs-secondary-color);
 }
