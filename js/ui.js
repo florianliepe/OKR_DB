@@ -60,6 +60,7 @@ class UI {
     renderProjectSwitcher(projects) {
         const activeProjects = projects.filter(p => !p.isArchived);
         const archivedProjects = projects.filter(p => p.isArchived);
+
         const archivedSectionHtml = archivedProjects.length > 0 ? `
             <div class="col-12 text-center mt-5">
                 <button class="btn btn-outline-secondary" id="toggle-archived-btn">
@@ -74,6 +75,7 @@ class UI {
                 </div>
             </div>
         ` : '';
+
         this.appContainer.innerHTML = `
             <div class="container py-5">
                 <div class="text-center mb-5">
@@ -113,6 +115,7 @@ class UI {
         const archiveButton = project.isArchived 
             ? `<button class="btn btn-sm btn-outline-secondary unarchive-project-btn" data-project-id="${project.id}" title="Unarchive"><i class="bi bi-box-arrow-up"></i></button>`
             : `<button class="btn btn-sm btn-outline-warning archive-project-btn" data-project-id="${project.id}" title="Archive"><i class="bi bi-archive"></i></button>`;
+
         return `
             <div class="col-12 col-md-6 col-lg-4">
                 <div class="card project-card bg-dark text-white h-100" data-project-id="${project.id}">
