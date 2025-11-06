@@ -327,7 +327,7 @@ class UI {
             <div id="report-content">${reportContentHtml}</div>`;
     }
 
-    renderGanttView(project) {
+    renderGanttView(project, onDateChangeCallback) {
         const view = document.getElementById('gantt-view');
         if (!view) return;
         const activeCycle = project.cycles.find(c => c.status === 'Active');
@@ -345,6 +345,9 @@ class UI {
         if (objectivesForGantt.length === 0) { view.innerHTML = '<div class="alert alert-info">No objectives with start and end dates found in this cycle. Please edit objectives to add dates for them to appear on the Gantt chart.</div>'; return; }
         view.innerHTML = '<svg id="gantt-chart"></svg>';
         new Gantt("#gantt-chart", objectivesForGantt, {
+            on_date_change: (task, start, end) => {
+                onDateChangeCallback(task, start, end);
+            },
             header_height: 50, column_width: 30, step: 24,
             view_modes: ['Quarter Day', 'Half Day', 'Day', 'Week', 'Month'],
             bar_height: 20, bar_corner_radius: 3, arrow_curve: 5, padding: 18,
