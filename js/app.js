@@ -3,6 +3,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const ui = new UI();
     let currentViewListeners = [];
 
+    // State for view-specific filters
+    let explorerResponsibleFilter = 'all';
+    let dashboardOwnerFilter = 'all';
+    let dashboardResponsibleFilter = 'all';
+
+
     function cleanupListeners() {
         currentViewListeners.forEach(({ element, type, handler }) => element.removeEventListener(type, handler));
         currentViewListeners = [];
@@ -140,8 +146,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const hash = window.location.hash || '#dashboard';
             ui.showView(hash.substring(1) + '-view');
             switch(hash) {
-                case '#dashboard': ui.renderDashboardView(project); break;
-                case '#explorer': ui.renderExplorerView(project, document.getElementById('search-input').value); break;
+                case '#dashboard': ui.renderDashboardView(project, dashboardOwnerFilter, dashboardResponsibleFilter); break;
+                case '#explorer': ui.renderExplorerView(project, document.getElementById('search-input').value, explorerResponsibleFilter); break;
                 case '#gantt': ui.renderGanttView(project); break;
                 case '#risk-board': ui.renderRiskBoardView(project); break;
                 case '#reporting': ui.renderReportingView(project); break;
@@ -173,7 +179,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ui.showToast(`Project exported to ${fileName}.`, 'info');
         });
         
-        addListener(document.getElementById('search-input'), 'input', e => ui.renderExplorerView(project, e.target.value));
+        addListener(document.getElementById('search-input'), 'input', e => {
+            ui.renderExplorerView(project, e.target.value, explorerResponsibleFilter);
+            initializeTooltips();
+        });
         addListener(document.getElementById('cycle-selector-list'), 'click', e => {
             if (e.target.dataset.cycleId) {
                 e.preventDefault();
@@ -229,10 +238,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 project = store.getCurrentProject();
                 ui.renderReportingView(project, newDate);
             }
-            if (e.target.id === 'dashboard-filter') {
-                const filterOwnerId = e.target.value;
+            if (e.target.id === 'dashboard-filter-owner') {
+                dashboardOwnerFilter = e.target.value;
                 project = store.getCurrentProject();
-                ui.renderDashboardView(project, filterOwnerId);
+                ui.renderDashboardView(project, dashboardOwnerFilter, dashboardResponsibleFilter);
+            }
+            if (e.target.id === 'dashboard-filter-responsible') {
+                dashboardResponsibleFilter = e.target.value;
+                project = store.getCurrentProject();
+                ui.renderDashboardView(project, dashboardOwnerFilter, dashboardResponsibleFilter);
+            }
+            if (e.target.id === 'explorer-filter-responsible') {
+                explorerResponsibleFilter = e.target.value;
+                project = store.getCurrentProject();
+                ui.renderExplorerView(project, document.getElementById('search-input').value, explorerResponsibleFilter);
+                initializeTooltips();
             }
         });
 
@@ -253,14 +273,11 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const container = e.target.closest('.objective-list');
             if (!container) return;
-
             const existingPlaceholder = container.querySelector('.drag-over-placeholder');
             if(existingPlaceholder) existingPlaceholder.remove();
-
             const afterElement = getDragAfterElement(container, e.clientY);
             const placeholder = document.createElement('div');
             placeholder.classList.add('drag-over-placeholder');
-
             if (afterElement == null) {
                 container.appendChild(placeholder);
             } else {
@@ -273,22 +290,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const container = e.target.closest('.objective-list');
             const placeholder = container?.querySelector('.drag-over-placeholder');
             if(placeholder) placeholder.remove();
-
             const draggedElement = document.querySelector('.dragging');
             if (!draggedElement || !container) return;
-            
-            let newOrderedIds = [...container.querySelectorAll('.okr-card:not(.dragging)')]
-                .map(el => el.id);
-
+            let newOrderedIds = [...container.querySelectorAll('.okr-card:not(.dragging)')].map(el => el.id);
             const afterElement = getDragAfterElement(container, e.clientY);
-
             if (afterElement == null) {
                 newOrderedIds.push(draggedElement.id);
             } else {
                 const insertIndex = newOrderedIds.indexOf(afterElement.id);
                 newOrderedIds.splice(insertIndex, 0, draggedElement.id);
             }
-            
             store.reorderObjectives(newOrderedIds);
             router();
             ui.showToast('Objectives reordered.');
@@ -317,7 +328,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     title: document.getElementById('objective-title').value, ownerId: document.getElementById('objective-owner').value,
                     notes: document.getElementById('objective-notes').value, dependsOn: dependsOn,
                     startDate: document.getElementById('objective-start-date').value,
-                    endDate: document.getElementById('objective-end-date').value
+                    endDate: document.getElementById('objective-end-date').value,
+                    responsible: document.getElementById('objective-responsible').value.trim()
                 };
                 if(id) { store.updateObjective(id, data); ui.showToast('Objective updated successfully!'); } 
                 else { store.addObjective(data); ui.showToast('Objective added successfully!'); }
@@ -363,6 +375,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 form.reset();
                 document.getElementById('objective-id').value = '';
                 document.getElementById('objective-notes').value = '';
+                document.getElementById('objective-responsible').value = '';
                 const ownerSelect = document.getElementById('objective-owner');
                 const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
                 ownerSelect.innerHTML = owners.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
@@ -381,6 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         document.getElementById('objective-notes').value = obj.notes || '';
                         document.getElementById('objective-start-date').value = obj.startDate || '';
                         document.getElementById('objective-end-date').value = obj.endDate || '';
+                        document.getElementById('objective-responsible').value = obj.responsible || '';
                         if (obj.dependsOn) {
                             Array.from(dependsOnSelect.options).forEach(opt => {
                                 if (obj.dependsOn.includes(opt.value)) opt.selected = true;
