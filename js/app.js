@@ -140,6 +140,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         ui.renderMainLayout(project);
 
+        const handleGanttDateChange = (task, start, end) => {
+            const formattedStart = start.toISOString().split('T')[0];
+            const formattedEnd = end.toISOString().split('T')[0];
+            
+            if (confirm(`Change dates for "${task.name}" to ${formattedStart} - ${formattedEnd}?`)) {
+                const objective = project.objectives.find(o => o.id === task.id);
+                if (objective) {
+                    store.updateObjective(task.id, { ...objective, startDate: formattedStart, endDate: formattedEnd });
+                    ui.showToast('Objective dates updated.');
+                }
+            } else {
+                // If user cancels, re-render to snap the bar back to its original position
+                router();
+            }
+        };
+
         const router = () => {
             project = store.getCurrentProject();
             if (!project) { main(); return; }
@@ -148,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
             switch(hash) {
                 case '#dashboard': ui.renderDashboardView(project, dashboardOwnerFilter, dashboardResponsibleFilter); break;
                 case '#explorer': ui.renderExplorerView(project, document.getElementById('search-input').value, explorerResponsibleFilter); break;
-                case '#gantt': ui.renderGanttView(project); break;
+                case '#gantt': ui.renderGanttView(project, handleGanttDateChange); break;
                 case '#risk-board': ui.renderRiskBoardView(project); break;
                 case '#reporting': ui.renderReportingView(project); break;
                 case '#cycles': ui.renderCyclesView(project); break;
@@ -248,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 project = store.getCurrentProject();
                 ui.renderDashboardView(project, dashboardOwnerFilter, dashboardResponsibleFilter);
             }
-            if (e.target.id === 'explorer-filter-responsible') {
+             if (e.target.id === 'explorer-filter-responsible') {
                 explorerResponsibleFilter = e.target.value;
                 project = store.getCurrentProject();
                 ui.renderExplorerView(project, document.getElementById('search-input').value, explorerResponsibleFilter);
