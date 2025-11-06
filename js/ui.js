@@ -762,46 +762,4 @@ class UI {
                                     <div class="col-md-6"><label for="objective-end-date" class="form-label">End Date (Optional)</label><input type="date" class="form-control" id="objective-end-date"></div>
                                 </div>
                                 <div class="mb-3"><label for="objective-notes" class="form-label">Notes (Markdown supported)</label><textarea class="form-control" id="objective-notes" rows="5"></textarea></div>
-                                <div class="mb-3"><label for="objective-depends-on" class="form-label">Depends On (select one or more)</label><select class="form-select" id="objective-depends-on" multiple style="height: 150px;"></select></div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                                <button type="submit" class="btn btn-primary">Save Objective</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>`;
-    }
-    renderKeyResultModal() {
-        return `
-            <div class="modal fade" id="keyResultModal" tabindex="-1">
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <form id="kr-form">
-                            <div class="modal-header"><h5 class="modal-title" id="kr-modal-title">Add Key Result</h5></div>
-                            <div class="modal-body">
-                                <input type="hidden" id="kr-objective-id">
-                                <input type="hidden" id="kr-id">
-                                <div class="mb-3"><label for="kr-title" class="form-label">Key Result Title</label><input type="text" class="form-control" id="kr-title" required></div>
-                                <div class="row mb-3">
-                                    <div class="col-md-3"><label for="kr-start-value" class="form-label">Start Value</label><input type="number" class="form-control" id="kr-start-value" value="0" required></div>
-                                    <div class="col-md-3"><label for="kr-current-value" class="form-label">Current Value</label><input type="number" class="form-control" id="kr-current-value" value="0" required></div>
-                                    <div class="col-md-3"><label for="kr-target-value" class="form-label">Target Value</label><input type="number" class="form-control" id="kr-target-value" required></div>
-                                    <div class="col-md-3"><label for="kr-confidence" class="form-label">Confidence</label><select class="form-select" id="kr-confidence" required><option>On Track</option><option>At Risk</option><option>Off Track</option></select></div>
-                                </div>
-                                <div class="mb-3">
-                                    <label for="kr-notes" class="form-label">Notes (optional)</label>
-                                    <textarea class="form-control" id="kr-notes" rows="3"></textarea>
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                                <button type="submit" class="btn btn-primary">Save Key Result</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>`;
-    }
-}
+                                <div class="mb-3"><label for="objective-depends-on" class="form-label">Depends On (select one or more)</label><select class
