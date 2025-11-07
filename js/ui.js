@@ -382,7 +382,7 @@ class UI {
         const ownerFilterOptionsHtml = owners.map(owner => `<option value="${owner.id}" ${filterOwnerId === owner.id ? 'selected' : ''}>${owner.name}</option>`).join('');
         
         let contentHtml;
-        let responsibleFilterOptionsHtml = '';
+        let responsibleFilterOptionsHtml = ''; 
         let objectivesInCycleForCharts = [];
 
         if (!activeCycle) {
