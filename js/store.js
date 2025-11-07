@@ -159,10 +159,13 @@ class Store {
         if (obj) {
             const newKr = {
                 id: `kr-${Date.now()}`,
-                confidence: 'On Track',
                 notes: '',
                 ...data,
-                history: [{ date: new Date().toISOString().split('T')[0], value: data.currentValue }]
+                history: [{ 
+                    date: new Date().toISOString().split('T')[0], 
+                    value: data.currentValue,
+                    confidence: data.confidence 
+                }]
             };
             obj.keyResults.push(newKr);
             obj.progress = this.calculateProgress(obj);
@@ -176,12 +179,16 @@ class Store {
             if(kr) {
                 if (!kr.history) kr.history = [];
                 const hasValueChanged = String(kr.currentValue) !== String(data.currentValue);
-                if (hasValueChanged) {
+                const hasConfidenceChanged = kr.confidence !== data.confidence;
+
+                if (hasValueChanged || hasConfidenceChanged) {
                     kr.history.push({
                         date: new Date().toISOString().split('T')[0],
-                        value: data.currentValue
+                        value: data.currentValue,
+                        confidence: data.confidence
                     });
                 }
+                
                 Object.assign(kr, data);
             }
             obj.progress = this.calculateProgress(obj);
