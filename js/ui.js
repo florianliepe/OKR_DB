@@ -3,6 +3,16 @@ class UI {
         this.appContainer = document.getElementById('app-container');
         this.modalContainer = document.getElementById('modal-container');
         this.modals = {};
+        this.charts = {}; // To hold chart instances
+    }
+
+    destroyCharts() {
+        Object.values(this.charts).forEach(chart => {
+            if (chart) {
+                chart.destroy();
+            }
+        });
+        this.charts = {};
     }
 
     showToast(message, type = 'success') {
@@ -185,6 +195,7 @@ class UI {
     }
 
     showView(viewId) {
+        this.destroyCharts();
         document.querySelectorAll('.view-container').forEach(v => v.style.display = 'none');
         document.querySelectorAll('#sidebar .nav-link').forEach(l => l.classList.remove('active'));
         const viewEl = document.getElementById(viewId);
@@ -358,6 +369,9 @@ class UI {
     renderDashboardView(project, filterOwnerId = 'all', filterResponsible = 'all') {
         const view = document.getElementById('dashboard-view');
         if (!view) return;
+
+        this.destroyCharts();
+
         const activeCycle = project.cycles.find(c => c.status === 'Active');
         const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
         const ownerFilterOptionsHtml = owners.map(owner => `<option value="${owner.id}" ${filterOwnerId === owner.id ? 'selected' : ''}>${owner.name}</option>`).join('');
@@ -447,6 +461,22 @@ class UI {
                                 </div>
                             </div>
                         </div>
+                        <div class="col-md-6">
+                            <div class="card dashboard-card">
+                                <div class="card-body">
+                                    <h5 class="card-title text-muted">Health Trend (Last 30 Days)</h5>
+                                    <canvas id="health-trend-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card dashboard-card">
+                                <div class="card-body">
+                                    <h5 class="card-title text-muted">Progress Velocity (WoW)</h5>
+                                    <canvas id="velocity-chart"></canvas>
+                                </div>
+                            </div>
+                        </div>
                     </div>`;
             }
         }
@@ -469,6 +499,150 @@ class UI {
                 </div>
             </div>
             ${contentHtml}`;
+        
+        if (objectivesInCycle && objectivesInCycle.length > 0) {
+            this._renderHealthTrendChart(objectivesInCycle);
+            this._renderVelocityChart(objectivesInCycle);
+        }
+    }
+
+    _renderHealthTrendChart(objectives) {
+        const ctx = document.getElementById('health-trend-chart')?.getContext('2d');
+        if (!ctx) return;
+
+        const labels = [];
+        const today = new Date();
+        for (let i = 29; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            labels.push(date.toISOString().split('T')[0]);
+        }
+
+        const dailyCounts = {};
+        labels.forEach(label => {
+            dailyCounts[label] = { 'On Track': 0, 'At Risk': 0, 'Off Track': 0 };
+        });
+
+        const allKrs = objectives.flatMap(o => o.keyResults);
+        allKrs.forEach(kr => {
+            let lastKnownConfidence = 'On Track';
+            if (kr.history && kr.history.length > 0) {
+                const sortedHistory = [...kr.history].sort((a, b) => new Date(a.date) - new Date(b.date));
+                lastKnownConfidence = sortedHistory[0].confidence || 'On Track';
+                
+                labels.forEach(label => {
+                    const todaysUpdate = sortedHistory.find(h => h.date === label);
+                    if (todaysUpdate) {
+                        lastKnownConfidence = todaysUpdate.confidence;
+                    }
+                    if (new Date(sortedHistory[0].date) <= new Date(label)) {
+                       dailyCounts[label][lastKnownConfidence]++;
+                    }
+                });
+            }
+        });
+
+        const datasets = {
+            'On Track': { data: [], color: 'rgba(25, 135, 84, 0.7)' },
+            'At Risk': { data: [], color: 'rgba(255, 193, 7, 0.7)' },
+            'Off Track': { data: [], color: 'rgba(220, 53, 69, 0.7)' }
+        };
+
+        labels.forEach(label => {
+            datasets['On Track'].data.push(dailyCounts[label]['On Track']);
+            datasets['At Risk'].data.push(dailyCounts[label]['At Risk']);
+            datasets['Off Track'].data.push(dailyCounts[label]['Off Track']);
+        });
+
+        this.charts.healthTrend = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels.map(l => new Date(l).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})),
+                datasets: Object.keys(datasets).map(key => ({
+                    label: key,
+                    data: datasets[key].data,
+                    borderColor: datasets[key].color,
+                    backgroundColor: datasets[key].color,
+                    tension: 0.1
+                }))
+            },
+            options: {
+                scales: {
+                    y: { beginAtZero: true, ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                    x: { ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+                },
+                plugins: { legend: { labels: { color: '#adb5bd' } } }
+            }
+        });
+    }
+
+    _calculateHistoricProgress(objectives, reportDate) {
+        if (!objectives || objectives.length === 0) return 0;
+        
+        let totalProgress = 0;
+        objectives.forEach(obj => {
+            let objProgress = 0;
+            if (obj.keyResults.length > 0) {
+                const krTotal = obj.keyResults.reduce((sum, kr) => {
+                    let currentValue = Number(kr.startValue);
+                    if (kr.history && kr.history.length > 0) {
+                        const relevantHistory = kr.history.filter(h => h.date <= reportDate);
+                        if (relevantHistory.length > 0) {
+                            relevantHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+                            currentValue = Number(relevantHistory[0].value);
+                        }
+                    }
+                    const start = Number(kr.startValue);
+                    const target = Number(kr.targetValue);
+                    if (target === start) return sum + 100;
+                    return sum + Math.max(0, Math.min(100, ((currentValue - start) / (target - start)) * 100));
+                }, 0);
+                objProgress = krTotal / obj.keyResults.length;
+            }
+            totalProgress += objProgress;
+        });
+        return Math.round(totalProgress / objectives.length);
+    }
+    
+    _renderVelocityChart(objectives) {
+        const ctx = document.getElementById('velocity-chart')?.getContext('2d');
+        if (!ctx) return;
+
+        const weeklyProgress = [];
+        const labels = [];
+        const today = new Date();
+
+        for (let i = 3; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - (i * 7));
+            const dateString = date.toISOString().split('T')[0];
+            weeklyProgress.push(this._calculateHistoricProgress(objectives, dateString));
+            labels.push(`Week of ${new Date(date.setDate(date.getDate() - 6)).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}`);
+        }
+        
+        const velocities = [];
+        for (let i = 1; i < weeklyProgress.length; i++) {
+            velocities.push(weeklyProgress[i] - weeklyProgress[i-1]);
+        }
+        
+        this.charts.velocity = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels.slice(1),
+                datasets: [{
+                    label: 'Weekly Progress Change (%)',
+                    data: velocities,
+                    backgroundColor: velocities.map(v => v >= 0 ? 'rgba(25, 135, 84, 0.7)' : 'rgba(220, 53, 69, 0.7)')
+                }]
+            },
+            options: {
+                scales: {
+                    y: { ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                    x: { ticks: { color: '#adb5bd' }, grid: { display: false } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
     }
 
     renderNavControls(project) {
