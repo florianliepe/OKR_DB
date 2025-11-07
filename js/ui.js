@@ -377,12 +377,14 @@ class UI {
         const ownerFilterOptionsHtml = owners.map(owner => `<option value="${owner.id}" ${filterOwnerId === owner.id ? 'selected' : ''}>${owner.name}</option>`).join('');
         
         let contentHtml;
-        let responsibleFilterOptionsHtml = ''; 
+        let responsibleFilterOptionsHtml = '';
+        let objectivesInCycleForCharts = [];
 
         if (!activeCycle) {
             contentHtml = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
         } else {
             let objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
+            objectivesInCycleForCharts = objectivesInCycle; // For charts, use all objectives in cycle
             
             const responsibles = [...new Set(objectivesInCycle.map(o => o.responsible).filter(Boolean))];
             responsibleFilterOptionsHtml = responsibles.map(r => `<option value="${r}" ${filterResponsible === r ? 'selected' : ''}>${r}</option>`).join('');
@@ -500,9 +502,9 @@ class UI {
             </div>
             ${contentHtml}`;
         
-        if (objectivesInCycle && objectivesInCycle.length > 0) {
-            this._renderHealthTrendChart(objectivesInCycle);
-            this._renderVelocityChart(objectivesInCycle);
+        if (objectivesInCycleForCharts && objectivesInCycleForCharts.length > 0) {
+            this._renderHealthTrendChart(objectivesInCycleForCharts);
+            this._renderVelocityChart(objectivesInCycleForCharts);
         }
     }
 
@@ -525,20 +527,19 @@ class UI {
 
         const allKrs = objectives.flatMap(o => o.keyResults);
         allKrs.forEach(kr => {
-            let lastKnownConfidence = 'On Track';
-            if (kr.history && kr.history.length > 0) {
-                const sortedHistory = [...kr.history].sort((a, b) => new Date(a.date) - new Date(b.date));
-                lastKnownConfidence = sortedHistory[0].confidence || 'On Track';
-                
-                labels.forEach(label => {
-                    const todaysUpdate = sortedHistory.find(h => h.date === label);
-                    if (todaysUpdate) {
-                        lastKnownConfidence = todaysUpdate.confidence;
-                    }
-                    if (new Date(sortedHistory[0].date) <= new Date(label)) {
-                       dailyCounts[label][lastKnownConfidence]++;
-                    }
-                });
+            if (!kr.history || kr.history.length === 0) return;
+
+            const sortedHistory = [...kr.history].sort((a, b) => new Date(a.date) - new Date(b.date));
+            let historyIndex = 0;
+
+            for (const label of labels) {
+                while (historyIndex < sortedHistory.length - 1 && sortedHistory[historyIndex + 1].date <= label) {
+                    historyIndex++;
+                }
+                const currentConfidence = sortedHistory[historyIndex].confidence || 'On Track';
+                 if (new Date(sortedHistory[0].date) <= new Date(label)) {
+                    dailyCounts[label][currentConfidence]++;
+                }
             }
         });
 
@@ -563,12 +564,13 @@ class UI {
                     data: datasets[key].data,
                     borderColor: datasets[key].color,
                     backgroundColor: datasets[key].color,
-                    tension: 0.1
+                    tension: 0.1,
+                    fill: false
                 }))
             },
             options: {
                 scales: {
-                    y: { beginAtZero: true, ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                    y: { beginAtZero: true, ticks: { color: '#adb5bd', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)' } },
                     x: { ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.1)' } }
                 },
                 plugins: { legend: { labels: { color: '#adb5bd' } } }
@@ -612,12 +614,14 @@ class UI {
         const labels = [];
         const today = new Date();
 
-        for (let i = 3; i >= 0; i--) {
+        for (let i = 4; i >= 0; i--) { // 5 points for 4 weeks of change
             const date = new Date(today);
             date.setDate(date.getDate() - (i * 7));
             const dateString = date.toISOString().split('T')[0];
             weeklyProgress.push(this._calculateHistoricProgress(objectives, dateString));
-            labels.push(`Week of ${new Date(date.setDate(date.getDate() - 6)).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}`);
+            if (i < 4) {
+                 labels.push(`Week of ${new Date(date.setDate(date.getDate() - 6)).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}`);
+            }
         }
         
         const velocities = [];
@@ -628,7 +632,7 @@ class UI {
         this.charts.velocity = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: labels.slice(1),
+                labels: labels,
                 datasets: [{
                     label: 'Weekly Progress Change (%)',
                     data: velocities,
