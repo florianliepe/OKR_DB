@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const deleteBtn = e.target.closest('.delete-project-btn');
             const archiveBtn = e.target.closest('.archive-project-btn');
             const unarchiveBtn = e.target.closest('.unarchive-project-btn');
+            const cloneBtn = e.target.closest('.clone-project-btn');
             const toggleBtn = e.target.closest('#toggle-archived-btn');
 
             if (toggleBtn) {
@@ -80,6 +81,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.stopPropagation();
                 store.unarchiveProject(unarchiveBtn.dataset.projectId);
                 ui.showToast('Project unarchived.');
+                main();
+                return;
+            }
+            if (cloneBtn) {
+                e.stopPropagation();
+                store.cloneProject(cloneBtn.dataset.projectId);
+                ui.showToast('Project cloned successfully.');
                 main();
                 return;
             }
@@ -151,7 +159,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     ui.showToast('Objective dates updated.');
                 }
             } else {
-                // If user cancels, re-render to snap the bar back to its original position
                 router();
             }
         };
