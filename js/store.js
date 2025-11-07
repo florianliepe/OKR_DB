@@ -82,6 +82,40 @@ class Store {
         return newProject;
     }
 
+    cloneProject(projectId) {
+        const originalProject = this.appData.projects.find(p => p.id === projectId);
+        if (!originalProject) return null;
+
+        // Deep copy to avoid reference issues
+        const clonedProject = JSON.parse(JSON.stringify(originalProject));
+
+        // Update core properties of the new project
+        clonedProject.id = `proj-${Date.now()}`;
+        clonedProject.name = `${originalProject.name} (Clone)`;
+        clonedProject.isArchived = false;
+
+        // Create a new, single cycle for the cloned project
+        const newCycleId = `cycle-${Date.now()}`;
+        clonedProject.cycles = [{ id: newCycleId, name: "Initial Cycle", startDate: new Date().toISOString().split('T')[0], endDate: "", status: "Active" }];
+
+        // Reset all objectives and their key results for the new cycle
+        clonedProject.objectives.forEach(obj => {
+            obj.id = `obj-${Date.now() + Math.random()}`;
+            obj.cycleId = newCycleId;
+            obj.progress = 0;
+            obj.keyResults.forEach(kr => {
+                kr.id = `kr-${Date.now() + Math.random()}`;
+                kr.currentValue = kr.startValue;
+                kr.progress = 0;
+                kr.history = [];
+            });
+        });
+
+        this.appData.projects.push(clonedProject);
+        this.saveAppData();
+        return clonedProject;
+    }
+
     _updateProjectById(projectId, updateFn) {
         const project = this.appData.projects.find(p => p.id === projectId);
         if (project) {
