@@ -1,4 +1,28 @@
-// This function will contain all the main application logic
+// --- Auth Guard ---
+// This now becomes the main entry point for the entire application.
+auth.onAuthStateChanged(user => {
+    const isLoginPage = window.location.pathname.endsWith('login.html');
+    
+    if (user) {
+        // User is logged in.
+        if (isLoginPage) {
+            // If they are on the login page, redirect them to the main app.
+            window.location.href = 'index.html';
+        } else if (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/')) {
+            // If they are on the main app page, initialize the app.
+            initializeApp();
+        }
+    } else {
+        // User is not logged in.
+        if (!isLoginPage) {
+            // If they are not on the login page, redirect them there.
+            window.location.href = 'login.html';
+        }
+        // If they are already on the login page, do nothing.
+    }
+});
+
+
 function initializeApp() {
     const store = new Store();
     const ui = new UI();
@@ -8,7 +32,6 @@ function initializeApp() {
     let explorerResponsibleFilter = 'all';
     let dashboardOwnerFilter = 'all';
     let dashboardResponsibleFilter = 'all';
-
 
     function cleanupListeners() {
         currentViewListeners.forEach(({ element, type, handler }) => element.removeEventListener(type, handler));
@@ -189,6 +212,7 @@ function initializeApp() {
         addListener(document.getElementById('logout-btn'), 'click', () => {
             auth.signOut().then(() => {
                 ui.showToast('You have been logged out.', 'info');
+                // The onAuthStateChanged listener will handle the redirect.
             }).catch(error => {
                 console.error("Logout error:", error);
                 ui.showToast('Error logging out.', 'danger');
@@ -467,31 +491,6 @@ function initializeApp() {
         router();
         ui.renderNavControls(project);
     }
+    
+    main();
 }
-
-// --- Auth Guard ---
-document.addEventListener('DOMContentLoaded', () => {
-    // This is the global entry point. The auth guard runs first.
-    // NOTE: This check assumes `auth` is available from `firebase-config.js` which is loaded in the HTML.
-    auth.onAuthStateChanged(user => {
-        const isLoginPage = window.location.pathname.endsWith('login.html');
-        
-        if (user) {
-            // User is logged in.
-            if (isLoginPage) {
-                // If they are on the login page, redirect them to the main app.
-                window.location.href = 'index.html';
-            } else {
-                // If they are on any other page (e.g., index.html), initialize the app.
-                initializeApp();
-            }
-        } else {
-            // User is not logged in.
-            if (!isLoginPage) {
-                // If they are not on the login page, redirect them there.
-                window.location.href = 'login.html';
-            }
-            // If they are already on the login page, do nothing.
-        }
-    });
-});
