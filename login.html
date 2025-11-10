@@ -15,10 +15,8 @@
         <div class="auth-card">
             <h1 class="text-center mb-4"><i class="bi bi-bullseye"></i> OKR Master</h1>
             
-            <!-- Error Alert -->
             <div id="auth-alert" class="alert alert-danger" style="display: none;" role="alert"></div>
 
-            <!-- Login Form -->
             <form id="login-form">
                 <h3 class="h5 mb-3">Sign In</h3>
                 <div class="form-floating mb-3">
@@ -34,7 +32,6 @@
 
             <hr class="my-4">
 
-            <!-- Sign Up Form -->
             <form id="signup-form">
                 <h3 class="h5 mb-3">Create an Account</h3>
                  <div class="form-floating mb-3">
@@ -49,14 +46,70 @@
             </form>
         </div>
     </div>
-
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     
-    <!-- Our Firebase Configuration and Auth Logic -->
-    <script src="js/firebase-config.js"></script>
-    <script src="js/auth.js"></script>
+    <!-- Import the modular Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+
+        // IMPORTANT: Paste your firebaseConfig object here
+        const firebaseConfig = {
+            apiKey: "AIzaSyC26f3QvnPD9F0_l_BNBdrGOvwICq86t1g",
+            authDomain: "eraokr-4d70a.firebaseapp.com",
+            projectId: "eraokr-4d70a",
+            storageBucket: "eraokr-4d70a.appspot.com",
+            messagingSenderId: "78295398521",
+            appId: "1:78295398521:web:ea3c7e8e9f7b8e247c7ca8",
+            measurementId: "G-GMY1CXXY4E"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+
+        const loginForm = document.getElementById('login-form');
+        const signupForm = document.getElementById('signup-form');
+        const authAlert = document.getElementById('auth-alert');
+
+        const showAlert = (message) => {
+            authAlert.textContent = message;
+            authAlert.style.display = 'block';
+        };
+
+        if (loginForm) {
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = document.getElementById('login-email').value;
+                const password = document.getElementById('login-password').value;
+
+                signInWithEmailAndPassword(auth, email, password)
+                    .then((userCredential) => {
+                        window.location.href = 'index.html';
+                    })
+                    .catch((error) => {
+                        showAlert(error.message);
+                    });
+            });
+        }
+
+        if (signupForm) {
+            signupForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const email = document.getElementById('signup-email').value;
+                const password = document.getElementById('signup-password').value;
+
+                createUserWithEmailAndPassword(auth, email, password)
+                    .then((userCredential) => {
+                        showAlert('Account created successfully! Logging you in...');
+                        setTimeout(() => {
+                            window.location.href = 'index.html';
+                        }, 1500);
+                    })
+                    .catch((error) => {
+                        showAlert(error.message);
+                    });
+            });
+        }
+    </script>
 
 </body>
 </html>
