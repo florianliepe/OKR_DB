@@ -1,27 +1,8 @@
-document.addEventListener('DOMContentLoaded', () => {
-
-    // --- Auth Guard ---
-    auth.onAuthStateChanged(user => {
-        const isLoginPage = window.location.pathname.endsWith('login.html');
-        if (user && isLoginPage) {
-            window.location.href = 'index.html';
-        } else if (!user && !isLoginPage) {
-            window.location.href = 'login.html';
-        } else if (user && (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/'))) {
-            initializeApp();
-        } else if (!user && isLoginPage) {
-            // Do nothing, user is on the login page and not logged in.
-        } else if (user && !isLoginPage) {
-            initializeApp();
-        }
-    });
-});
-
+// This function will contain all the main application logic
 function initializeApp() {
     const store = new Store();
     const ui = new UI();
     let currentViewListeners = [];
-}
 
     // State for view-specific filters
     let explorerResponsibleFilter = 'all';
@@ -206,7 +187,7 @@ function initializeApp() {
         });
 
         addListener(document.getElementById('logout-btn'), 'click', () => {
-            signOut(auth).then(() => {
+            auth.signOut().then(() => {
                 ui.showToast('You have been logged out.', 'info');
             }).catch(error => {
                 console.error("Logout error:", error);
@@ -487,3 +468,30 @@ function initializeApp() {
         ui.renderNavControls(project);
     }
 }
+
+// --- Auth Guard ---
+document.addEventListener('DOMContentLoaded', () => {
+    // This is the global entry point. The auth guard runs first.
+    // NOTE: This check assumes `auth` is available from `firebase-config.js` which is loaded in the HTML.
+    auth.onAuthStateChanged(user => {
+        const isLoginPage = window.location.pathname.endsWith('login.html');
+        
+        if (user) {
+            // User is logged in.
+            if (isLoginPage) {
+                // If they are on the login page, redirect them to the main app.
+                window.location.href = 'index.html';
+            } else {
+                // If they are on any other page (e.g., index.html), initialize the app.
+                initializeApp();
+            }
+        } else {
+            // User is not logged in.
+            if (!isLoginPage) {
+                // If they are not on the login page, redirect them there.
+                window.location.href = 'login.html';
+            }
+            // If they are already on the login page, do nothing.
+        }
+    });
+});
