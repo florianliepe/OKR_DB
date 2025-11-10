@@ -1,13 +1,15 @@
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY", // Replace with your actual apiKey
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com", // Replace with your actual authDomain
-  projectId: "YOUR_PROJECT_ID", // Replace with your actual projectId
-  storageBucket: "YOUR_PROJECT_ID.appspot.com", // Replace with your actual storageBucket
-  messagingSenderId: "YOUR_SENDER_ID", // Replace with your actual messagingSenderId
-  appId: "YOUR_APP_ID" // Replace with your actual appId
+  apiKey: "AIzaSyC26f3QvnPD9FO_l_BNBdrGOvwICq86t1g",
+  authDomain: "eraokr-4d70a.firebaseapp.com",
+  projectId: "eraokr-4d70a",
+  storageBucket: "eraokr-4d70a.firebasestorage.app",
+  messagingSenderId: "78295398521",
+  appId: "1:78295398521:web:ea3c7e8e9f7b8e247c7ca8",
+  measurementId: "G-GMY1CXXY4E"
 };
 
 // Initialize Firebase
-const app = firebase.initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 const auth = firebase.auth();
 const db = firebase.firestore();
