@@ -9,7 +9,7 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase using the v8 SDK syntax
-firebase.initializeApp(firebase-Config);
+firebase.initializeApp(firebaseConfig);
 
 // Correctly get the Auth and Firestore services for the v8 SDK
 const auth = firebase.auth();
