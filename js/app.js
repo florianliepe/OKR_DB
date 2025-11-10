@@ -1,22 +1,48 @@
-document.addEventListener('DOMContentLoaded', () => {
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
-    // --- Auth Guard ---
-    auth.onAuthStateChanged(user => {
-        const isLoginPage = window.location.pathname.endsWith('login.html');
-        if (user && isLoginPage) {
-            // If user is logged in and on the login page, redirect to main app
-            window.location.href = 'index.html';
-        } else if (!user && !isLoginPage) {
-            // If user is not logged in and not on the login page, redirect to login
-            window.location.href = 'login.html';
-        }
-    });
+// IMPORTANT: Paste your firebaseConfig object here
+const firebaseConfig = {
+    apiKey: "AIzaSyC26f3QvnPD9F0_l_BNBdrGOvwICq86t1g",
+    authDomain: "eraokr-4d70a.firebaseapp.com",
+    projectId: "eraokr-4d70a",
+    storageBucket: "eraokr-4d70a.appspot.com",
+    messagingSenderId: "78295398521",
+    appId: "1:78295398521:web:ea3c7e8e9f7b8e247c7ca8",
+    measurementId: "G-GMY1CXXY4E"
+};
 
-    // Check if we are on the main app page before running app logic
-    if (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/')) {
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// --- Auth Guard ---
+onAuthStateChanged(auth, user => {
+    const isLoginPage = window.location.pathname.endsWith('login.html');
+    if (user && isLoginPage) {
+        window.location.href = 'index.html';
+    } else if (!user && !isLoginPage) {
+        window.location.href = 'login.html';
+    } else if (user && !isLoginPage) {
+        // User is logged in and on the correct page, so initialize the app
+        initializeApp();
+    }
+});
+
+function initializeApp() {
+    // Dynamically import the app's main classes AFTER auth is confirmed
+    Promise.all([
+        import('./store.js'),
+        import('./ui.js')
+    ]).then(([{ Store }, { UI }]) => {
+
         const store = new Store();
         const ui = new UI();
         let currentViewListeners = [];
+
+        // ... rest of the app logic ...
+        // (The content of your old app.js file from `let explorerResponsibleFilter = 'all';` downwards goes here)
 
         // State for view-specific filters
         let explorerResponsibleFilter = 'all';
@@ -201,9 +227,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             addListener(document.getElementById('logout-btn'), 'click', () => {
-                auth.signOut().then(() => {
+                signOut(auth).then(() => {
                     ui.showToast('You have been logged out.', 'info');
-                    // The onAuthStateChanged listener will handle the redirect
+                    // onAuthStateChanged will handle the redirect
                 }).catch(error => {
                     console.error("Logout error:", error);
                     ui.showToast('Error logging out.', 'danger');
@@ -483,6 +509,5 @@ document.addEventListener('DOMContentLoaded', () => {
             ui.renderNavControls(project);
         }
         
-        main();
-    }
+    });
 });
