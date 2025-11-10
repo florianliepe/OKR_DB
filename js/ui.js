@@ -167,6 +167,7 @@ class UI {
                             <div class="d-flex flex-column gap-2">
                                 <button class="btn btn-sm btn-outline-secondary" id="export-project-btn"><i class="bi bi-download me-2"></i> Export Project</button>
                                 <button class="btn btn-sm btn-outline-light" id="back-to-projects"><i class="bi bi-box-arrow-left me-2"></i>All Projects</button>
+                                <button class="btn btn-sm btn-danger" id="logout-btn"><i class="bi bi-power me-2"></i>Logout</button>
                             </div>
                         </nav>
                     </div>
