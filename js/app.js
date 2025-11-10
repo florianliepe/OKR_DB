@@ -4,23 +4,24 @@ document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged(user => {
         const isLoginPage = window.location.pathname.endsWith('login.html');
         if (user && isLoginPage) {
-            // If user is logged in and on the login page, redirect to main app
             window.location.href = 'index.html';
         } else if (!user && !isLoginPage) {
-            // If user is not logged in and not on the login page, redirect to login
             window.location.href = 'login.html';
         } else if (user && (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/'))) {
-            // User is logged in and on the correct page, so initialize the app
+            initializeApp();
+        } else if (!user && isLoginPage) {
+            // Do nothing, user is on the login page and not logged in.
+        } else if (user && !isLoginPage) {
             initializeApp();
         }
     });
 });
 
 function initializeApp() {
-    // This function will now contain all the main application logic
     const store = new Store();
     const ui = new UI();
     let currentViewListeners = [];
+}
 
     // State for view-specific filters
     let explorerResponsibleFilter = 'all';
