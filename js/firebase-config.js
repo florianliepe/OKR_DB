@@ -1,6 +1,7 @@
-// Paste your firebaseConfig object here.
+// Paste your complete firebaseConfig object.
+// CRITICAL: Replace the apiKey value with the NEW key you just generated.
 const firebaseConfig = {
-  apiKey: "AIzaSyC26f3QvnPD9F0_l_BNBdrGOvwICq86t1g",
+  apiKey: "AIzaSyDiFrGZLK1oCmz8JKkljMs_vVLZkv8Di1I", 
   authDomain: "eraokr-4d70a.firebaseapp.com",
   projectId: "eraokr-4d70a",
   storageBucket: "eraokr-4d70a.appspot.com",
@@ -9,7 +10,7 @@ const firebaseConfig = {
   measurementId: "G-GMY1CXXY4E"
 };
 
-// Initialize Firebase
+// Initialize Firebase using the v8 SDK syntax
 if (!firebase.apps.length) {
     firebase.initializeApp(firebaseConfig);
 }
