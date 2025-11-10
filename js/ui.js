@@ -1,5 +1,4 @@
 export class UI {
-class UI {
     constructor() {
         this.appContainer = document.getElementById('app-container');
         this.modalContainer = document.getElementById('modal-container');
