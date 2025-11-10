@@ -8,9 +8,18 @@ const firebaseConfig = {
   measurementId: "G-GMY1CXXY4E"
 };
 
-// Initialize Firebase using the v8 SDK syntax
-firebase.initializeApp(firebaseConfig);
+// Initialize Firebase
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
 
-// Correctly get the Auth and Firestore services for the v8 SDK
-const auth = firebase.auth();
-const db = firebase.firestore();
+// Conditionally initialize services only if they have been loaded
+let auth;
+if (typeof firebase.auth === 'function') {
+    auth = firebase.auth();
+}
+
+let db;
+if (typeof firebase.firestore === 'function') {
+    db = firebase.firestore();
+}
