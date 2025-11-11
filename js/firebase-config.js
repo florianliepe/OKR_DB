@@ -1,17 +1,22 @@
-// Paste your firebaseConfig object here.
+// Import functions from the Firebase CDN directly
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyC26f3QvnPD9F0_l_BNBdrGOvwICq86t1g",
-  authDomain: "eraokr-4d70a.firebaseapp.com",
-  projectId: "eraokr-4d70a",
-  storageBucket: "eraokr-4d70a.appspot.com",
-  messagingSenderId: "78295398521",
-  appId: "1:78295398521:web:ea3c7e8e9f7b8e247c7ca8",
-  measurementId: "G-GMY1CXXY4E"
+    apiKey: "AIzaSyC26f3QvnPD9F0_l_BNBdrGOvwICq86t1g", // Use your valid API key here
+    authDomain: "eraokr-4d70a.firebaseapp.com",
+    projectId: "eraokr-4d70a",
+    storageBucket: "eraokr-4d70a.appspot.com",
+    messagingSenderId: "78295398521",
+    appId: "1:78295398521:web:ea3c7e8e9f7b8e247c7ca8",
+    measurementId: "G-GMY1CXXY4E"
 };
 
 // Initialize Firebase
-const app = firebase.initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
 
-// Get and export the Auth and Firestore services
-export const auth = firebase.auth();
-export const db = firebase.firestore();
+// Get and export the services
+export const auth = getAuth(app);
+export const db = getFirestore(app);
