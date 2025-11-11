@@ -1,30 +1,27 @@
+import { Store as LocalStore } from './store.js'; // Keep for migration
+import { FirestoreStore as Store } from './firestore-store.js';
+
 // --- Auth Guard ---
-// This now becomes the main entry point for the entire application.
 auth.onAuthStateChanged(user => {
     const isLoginPage = window.location.pathname.endsWith('login.html');
     
     if (user) {
-        // User is logged in.
         if (isLoginPage) {
-            // If they are on the login page, redirect them to the main app.
             window.location.href = 'index.html';
         } else if (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/')) {
-            // If they are on the main app page, initialize the app.
-            initializeApp();
+            initializeApp(user);
         }
     } else {
-        // User is not logged in.
         if (!isLoginPage) {
-            // If they are not on the login page, redirect them there.
             window.location.href = 'login.html';
         }
-        // If they are already on the login page, do nothing.
     }
 });
 
 
-function initializeApp() {
+async function initializeApp(user) {
     const store = new Store();
+    await store.loadAppData(); // This is now an async operation
     const ui = new UI();
     let currentViewListeners = [];
 
@@ -54,19 +51,20 @@ function initializeApp() {
         [...tooltipTriggerList].forEach(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
     }
 
-    function main() {
+    async function main() {
         cleanupListeners();
+        // Data is now loaded once at the start, so we just get it
         const currentProject = store.getCurrentProject();
         if (currentProject) {
-            loadProject(currentProject);
+            await loadProject(currentProject);
         } else {
-            loadProjectSwitcher();
+            await loadProjectSwitcher();
         }
     }
 
-    function loadProjectSwitcher() {
+    async function loadProjectSwitcher() {
         ui.renderProjectSwitcher(store.getProjects());
-        addListener(document.getElementById('app-container'), 'click', e => {
+        addListener(document.getElementById('app-container'), 'click', async e => {
             const card = e.target.closest('.project-card');
             const deleteBtn = e.target.closest('.delete-project-btn');
             const archiveBtn = e.target.closest('.archive-project-btn');
@@ -88,54 +86,54 @@ function initializeApp() {
                 e.stopPropagation();
                 const projectId = deleteBtn.dataset.projectId, projectName = deleteBtn.dataset.projectName;
                 if (confirm(`Are you sure you want to PERMANENTLY DELETE the project "${projectName}"? This action cannot be undone.`)) {
-                    store.deleteProject(projectId);
+                    await store.deleteProject(projectId);
                     ui.showToast(`Project "${projectName}" deleted.`, 'danger');
-                    main();
+                    await main();
                 }
                 return;
             }
              if (archiveBtn) {
                 e.stopPropagation();
-                store.archiveProject(archiveBtn.dataset.projectId);
+                await store.archiveProject(archiveBtn.dataset.projectId);
                 ui.showToast('Project archived.', 'info');
-                main();
+                await main();
                 return;
             }
             if (unarchiveBtn) {
                 e.stopPropagation();
-                store.unarchiveProject(unarchiveBtn.dataset.projectId);
+                await store.unarchiveProject(unarchiveBtn.dataset.projectId);
                 ui.showToast('Project unarchived.');
-                main();
+                await main();
                 return;
             }
             if (cloneBtn) {
                 e.stopPropagation();
-                store.cloneProject(cloneBtn.dataset.projectId);
+                await store.cloneProject(cloneBtn.dataset.projectId);
                 ui.showToast('Project cloned successfully.');
-                main();
+                await main();
                 return;
             }
             if (card && card.id === 'create-new-project-card') {
                 ui.showModal('newProjectModal');
             } else if (card) {
                 store.setCurrentProjectId(card.dataset.projectId);
-                main();
+                await main();
             }
         });
 
         const importInput = document.getElementById('import-project-input');
         if (importInput) {
-            addListener(importInput, 'change', e => {
+            addListener(importInput, 'change', async e => {
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = (event) => {
+                reader.onload = async (event) => {
                     try {
                         const projectData = JSON.parse(event.target.result);
-                        const importedProject = store.importProject(projectData);
+                        const importedProject = await store.importProject(projectData);
                         if (importedProject) {
                             ui.showToast(`Project "${importedProject.name}" imported successfully.`);
-                            main();
+                            await main();
                         } else {
                             ui.showToast('Failed to import project. Invalid file format.', 'danger');
                         }
@@ -149,7 +147,7 @@ function initializeApp() {
             });
         }
         
-        addListener(document.getElementById('new-project-form'), 'submit', e => {
+        addListener(document.getElementById('new-project-form'), 'submit', async e => {
             e.preventDefault();
             const projectName = document.getElementById('project-name').value;
             const initialData = {
@@ -158,28 +156,28 @@ function initializeApp() {
                 vision: document.getElementById('project-vision').value,
                 teams: document.getElementById('project-teams').value.split('\n').filter(t => t.trim() !== '')
             };
-            const newProject = store.createNewProject(initialData);
+            const newProject = await store.createNewProject(initialData);
             store.setCurrentProjectId(newProject.id);
             ui.hideModal('newProjectModal');
             ui.showToast(`Project "${projectName}" created successfully!`);
-            main();
+            await main();
         });
     }
 
-    function loadProject(project) {
+    async function loadProject(project) {
         if (!window.location.hash || window.location.hash === '#') {
             window.location.hash = '#dashboard';
         }
         ui.renderMainLayout(project);
 
-        const handleGanttDateChange = (task, start, end) => {
+        const handleGanttDateChange = async (task, start, end) => {
             const formattedStart = start.toISOString().split('T')[0];
             const formattedEnd = end.toISOString().split('T')[0];
             
             if (confirm(`Change dates for "${task.name}" to ${formattedStart} - ${formattedEnd}?`)) {
                 const objective = project.objectives.find(o => o.id === task.id);
                 if (objective) {
-                    store.updateObjective(task.id, { ...objective, startDate: formattedStart, endDate: formattedEnd });
+                    await store.updateObjective(task.id, { ...objective, startDate: formattedStart, endDate: formattedEnd });
                     ui.showToast('Objective dates updated.');
                 }
             } else {
@@ -205,14 +203,13 @@ function initializeApp() {
         };
 
         addListener(window, 'hashchange', router);
-        addListener(document.getElementById('back-to-projects'), 'click', () => { 
-            window.location.hash = ''; store.setCurrentProjectId(null); main(); 
+        addListener(document.getElementById('back-to-projects'), 'click', async () => { 
+            window.location.hash = ''; store.setCurrentProjectId(null); await main(); 
         });
 
         addListener(document.getElementById('logout-btn'), 'click', () => {
-            auth.signOut().then(() => {
+            signOut(auth).then(() => {
                 ui.showToast('You have been logged out.', 'info');
-                // The onAuthStateChanged listener will handle the redirect.
             }).catch(error => {
                 console.error("Logout error:", error);
                 ui.showToast('Error logging out.', 'danger');
@@ -240,10 +237,10 @@ function initializeApp() {
             ui.renderExplorerView(project, e.target.value, explorerResponsibleFilter);
             initializeTooltips();
         });
-        addListener(document.getElementById('cycle-selector-list'), 'click', e => {
+        addListener(document.getElementById('cycle-selector-list'), 'click', async e => {
             if (e.target.dataset.cycleId) {
                 e.preventDefault();
-                store.setActiveCycle(e.target.dataset.cycleId);
+                await store.setActiveCycle(e.target.dataset.cycleId);
                 const activeCycle = store.getCurrentProject().cycles.find(c => c.id === e.target.dataset.cycleId);
                 ui.showToast(`Active cycle set to "${activeCycle.name}".`, 'info');
                 router();
@@ -251,11 +248,11 @@ function initializeApp() {
             }
         });
         
-        addListener(document.getElementById('app-container'), 'click', e => {
+        addListener(document.getElementById('app-container'), 'click', async e => {
             if (e.target.closest('.delete-obj-btn')) {
                 const objId = e.target.closest('.delete-obj-btn').dataset.objectiveId;
                 if(confirm('Are you sure you want to delete this objective and all its key results?')) {
-                    store.deleteObjective(objId);
+                    await store.deleteObjective(objId);
                     ui.showToast('Objective deleted.', 'danger');
                     router();
                 }
@@ -263,7 +260,7 @@ function initializeApp() {
             if (e.target.closest('.delete-kr-btn')) {
                 const { objectiveId, krId } = e.target.closest('.delete-kr-btn').dataset;
                 if(confirm('Are you sure you want to delete this key result?')) {
-                    store.deleteKeyResult(objectiveId, krId);
+                    await store.deleteKeyResult(objectiveId, krId);
                     ui.showToast('Key Result deleted.', 'danger');
                     router();
                 }
@@ -271,14 +268,14 @@ function initializeApp() {
             if (e.target.closest('.delete-cycle-btn')) {
                 const cycleId = e.target.closest('.delete-cycle-btn').dataset.cycleId;
                  if(confirm('Are you sure you want to delete this cycle? All objectives within it will also be deleted.')) {
-                    store.deleteCycle(cycleId);
+                    await store.deleteCycle(cycleId);
                     ui.showToast('Cycle deleted.', 'danger');
                     router();
                  }
             }
             if (e.target.closest('.set-active-cycle-btn')) {
                 const cycleId = e.target.closest('.set-active-cycle-btn').dataset.cycleId;
-                store.setActiveCycle(cycleId);
+                await store.setActiveCycle(cycleId);
                 project = store.getCurrentProject();
                 const activeCycle = project.cycles.find(c => c.id === cycleId);
                 ui.showToast(`Active cycle set to "${activeCycle.name}".`, 'info');
@@ -319,13 +316,11 @@ function initializeApp() {
                 e.target.classList.add('dragging');
             }
         });
-
         addListener(document.getElementById('explorer-view'), 'dragend', e => {
             if (e.target.classList.contains('okr-card')) {
                 e.target.classList.remove('dragging');
             }
         });
-
         addListener(document.getElementById('explorer-view'), 'dragover', e => {
             e.preventDefault();
             const container = e.target.closest('.objective-list');
@@ -341,8 +336,7 @@ function initializeApp() {
                 container.insertBefore(placeholder, afterElement);
             }
         });
-
-        addListener(document.getElementById('explorer-view'), 'drop', e => {
+        addListener(document.getElementById('explorer-view'), 'drop', async e => {
             e.preventDefault();
             const container = e.target.closest('.objective-list');
             const placeholder = container?.querySelector('.drag-over-placeholder');
@@ -357,7 +351,7 @@ function initializeApp() {
                 const insertIndex = newOrderedIds.indexOf(afterElement.id);
                 newOrderedIds.splice(insertIndex, 0, draggedElement.id);
             }
-            store.reorderObjectives(newOrderedIds);
+            await store.reorderObjectives(newOrderedIds);
             router();
             ui.showToast('Objectives reordered.');
         });
@@ -375,7 +369,7 @@ function initializeApp() {
             }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
         
-        addListener(document, 'submit', e => {
+        addListener(document, 'submit', async e => {
             e.preventDefault();
             if (e.target.id === 'objective-form') {
                 const id = document.getElementById('objective-id').value;
@@ -388,8 +382,8 @@ function initializeApp() {
                     endDate: document.getElementById('objective-end-date').value,
                     responsible: document.getElementById('objective-responsible').value.trim()
                 };
-                if(id) { store.updateObjective(id, data); ui.showToast('Objective updated successfully!'); } 
-                else { store.addObjective(data); ui.showToast('Objective added successfully!'); }
+                if(id) { await store.updateObjective(id, data); ui.showToast('Objective updated successfully!'); } 
+                else { await store.addObjective(data); ui.showToast('Objective added successfully!'); }
                 ui.hideModal('objectiveModal');
                 router();
             }
@@ -402,14 +396,14 @@ function initializeApp() {
                     confidence: document.getElementById('kr-confidence').value,
                     notes: document.getElementById('kr-notes').value
                 };
-                if (krId) { store.updateKeyResult(objId, krId, data); ui.showToast('Key Result updated successfully!'); } 
-                else { store.addKeyResult(objId, data); ui.showToast('Key Result added successfully!'); }
+                if (krId) { await store.updateKeyResult(objId, krId, data); ui.showToast('Key Result updated successfully!'); } 
+                else { await store.addKeyResult(objId, data); ui.showToast('Key Result added successfully!'); }
                 ui.hideModal('keyResultModal');
                 router();
             }
             if (e.target.id === 'new-cycle-form') {
                 const data = { name: document.getElementById('cycle-name').value, startDate: document.getElementById('cycle-start-date').value, endDate: document.getElementById('cycle-end-date').value };
-                store.addCycle(data);
+                await store.addCycle(data);
                 ui.showToast(`Cycle "${data.name}" added successfully.`);
                 e.target.reset();
                 router();
@@ -417,7 +411,7 @@ function initializeApp() {
             }
             if (e.target.id === 'foundation-form') {
                 const data = { mission: document.getElementById('foundation-mission').value, vision: document.getElementById('foundation-vision').value };
-                store.updateFoundation(data);
+                await store.updateFoundation(data);
                 ui.showToast('Foundation statements updated.');
                 router();
             }
@@ -492,5 +486,6 @@ function initializeApp() {
         ui.renderNavControls(project);
     }
     
+    // Initial call to start the application logic
     main();
 }
