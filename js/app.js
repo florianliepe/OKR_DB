@@ -1,5 +1,5 @@
-import { Store as LocalStore } from './store.js'; // Keep for migration
 import { FirestoreStore as Store } from './firestore-store.js';
+import { UI } from './ui.js';
 
 // --- Auth Guard ---
 auth.onAuthStateChanged(user => {
@@ -21,7 +21,7 @@ auth.onAuthStateChanged(user => {
 
 async function initializeApp(user) {
     const store = new Store();
-    await store.loadAppData(); // This is now an async operation
+    await store.loadAppData(); 
     const ui = new UI();
     let currentViewListeners = [];
 
@@ -53,7 +53,6 @@ async function initializeApp(user) {
 
     async function main() {
         cleanupListeners();
-        // Data is now loaded once at the start, so we just get it
         const currentProject = store.getCurrentProject();
         if (currentProject) {
             await loadProject(currentProject);
@@ -203,7 +202,7 @@ async function initializeApp(user) {
         };
 
         addListener(window, 'hashchange', router);
-        addListener(document.getElementById('back-to-projects'), 'click', async () => { 
+        addListener(document.getElementById('back-to-projects'), async () => { 
             window.location.hash = ''; store.setCurrentProjectId(null); await main(); 
         });
 
@@ -310,7 +309,6 @@ async function initializeApp(user) {
             }
         });
 
-        // --- Drag and Drop Logic ---
         addListener(document.getElementById('explorer-view'), 'dragstart', e => {
             if (e.target.classList.contains('okr-card')) {
                 e.target.classList.add('dragging');
@@ -486,6 +484,5 @@ async function initializeApp(user) {
         ui.renderNavControls(project);
     }
     
-    // Initial call to start the application logic
     main();
 }
