@@ -1,4 +1,4 @@
-class Store {
+export class Store {
     constructor() {
         this.STORAGE_KEY = 'okrAppMultiProject';
         this.appData = this.loadAppData();
