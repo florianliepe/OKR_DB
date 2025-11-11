@@ -1,5 +1,5 @@
 export class Store {
-      constructor() {
+    constructor() {
         this.STORAGE_KEY = 'okrAppMultiProject';
         this.appData = this.loadAppData();
         this.migrateLegacyData();
