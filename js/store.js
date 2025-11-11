@@ -1,10 +1,11 @@
 export class Store {
+//... rest of file is identical
+// FULL CODE PROVIDED BELOW
     constructor() {
         this.STORAGE_KEY = 'okrAppMultiProject';
         this.appData = this.loadAppData();
         this.migrateLegacyData();
     }
-
     loadAppData() {
         const savedData = localStorage.getItem(this.STORAGE_KEY);
         if (savedData) {
@@ -12,11 +13,9 @@ export class Store {
         }
         return { currentProjectId: null, projects: [] };
     }
-
     saveAppData() {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.appData));
     }
-    
     migrateLegacyData() {
         const legacyData = localStorage.getItem('okrAppData');
         if (legacyData) {
@@ -34,14 +33,12 @@ export class Store {
             console.log('Migration complete.');
         }
     }
-
     getProjects() { return this.appData.projects; }
     setCurrentProjectId(projectId) { this.appData.currentProjectId = projectId; this.saveAppData(); }
     getCurrentProject() {
         if (!this.appData.currentProjectId) return null;
         return this.appData.projects.find(p => p.id === this.appData.currentProjectId);
     }
-    
     createNewProject(initialData) {
         const newProject = {
             id: `proj-${Date.now()}`,
@@ -57,7 +54,6 @@ export class Store {
         this.saveAppData();
         return newProject;
     }
-
     deleteProject(projectId) {
         this.appData.projects = this.appData.projects.filter(p => p.id !== projectId);
         if (this.appData.currentProjectId === projectId) {
@@ -65,7 +61,6 @@ export class Store {
         }
         this.saveAppData();
     }
-
     importProject(projectData) {
         if (!projectData || !projectData.name || !projectData.cycles) {
             console.error('Invalid project data for import.');
@@ -81,20 +76,15 @@ export class Store {
         this.saveAppData();
         return newProject;
     }
-
     cloneProject(projectId) {
         const originalProject = this.appData.projects.find(p => p.id === projectId);
         if (!originalProject) return null;
-
         const clonedProject = JSON.parse(JSON.stringify(originalProject));
-
         clonedProject.id = `proj-${Date.now()}`;
         clonedProject.name = `${originalProject.name} (Clone)`;
         clonedProject.isArchived = false;
-        
         const newCycleId = `cycle-${Date.now() + 1}`;
         clonedProject.cycles = [{ id: newCycleId, name: "Initial Cycle", startDate: new Date().toISOString().split('T')[0], endDate: "", status: "Active" }];
-
         clonedProject.objectives.forEach(obj => {
             obj.id = `obj-${Date.now() + Math.random()}`;
             obj.cycleId = newCycleId;
@@ -106,12 +96,10 @@ export class Store {
                 kr.history = [];
             });
         });
-
         this.appData.projects.push(clonedProject);
         this.saveAppData();
         return clonedProject;
     }
-
     _updateProjectById(projectId, updateFn) {
         const project = this.appData.projects.find(p => p.id === projectId);
         if (project) {
@@ -119,15 +107,12 @@ export class Store {
             this.saveAppData();
         }
     }
-
     archiveProject(projectId) {
         this._updateProjectById(projectId, p => p.isArchived = true);
     }
-
     unarchiveProject(projectId) {
         this._updateProjectById(projectId, p => p.isArchived = false);
     }
-
     _updateCurrentProject(updateFn) {
         const project = this.getCurrentProject();
         if (project) {
@@ -135,7 +120,6 @@ export class Store {
             this.saveAppData();
         }
     }
-
     reorderObjectives(orderedIds) {
         this._updateCurrentProject(p => {
             const objectiveMap = new Map(p.objectives.map(obj => [obj.id, obj]));
@@ -144,7 +128,6 @@ export class Store {
             p.objectives = [...reorderedObjectives, ...unhandledObjectives];
         });
     }
-    
     addCycle(data) { this._updateCurrentProject(p => p.cycles.push({ id: `cycle-${Date.now()}`, ...data, status: "Archived" })); }
     setActiveCycle(id) { this._updateCurrentProject(p => p.cycles.forEach(c => c.status = (c.id === id) ? 'Active' : 'Archived')); }
     deleteCycle(id) { this._updateCurrentProject(p => { 
@@ -183,7 +166,6 @@ export class Store {
             });
         });
     }
-    
     addKeyResult(objId, data) { this._updateCurrentProject(p => {
         const obj = p.objectives.find(o => o.id === objId);
         if (obj) {
@@ -201,7 +183,6 @@ export class Store {
             obj.progress = this.calculateProgress(obj);
         }
     });}
-    
     updateKeyResult(objId, krId, data) { this._updateCurrentProject(p => {
         const obj = p.objectives.find(o => o.id === objId);
         if (obj) {
@@ -210,7 +191,6 @@ export class Store {
                 if (!kr.history) kr.history = [];
                 const hasValueChanged = String(kr.currentValue) !== String(data.currentValue);
                 const hasConfidenceChanged = kr.confidence !== data.confidence;
-
                 if (hasValueChanged || hasConfidenceChanged) {
                     kr.history.push({
                         date: new Date().toISOString().split('T')[0],
@@ -218,13 +198,11 @@ export class Store {
                         confidence: data.confidence
                     });
                 }
-                
                 Object.assign(kr, data);
             }
             obj.progress = this.calculateProgress(obj);
         }
     });}
-
     deleteKeyResult(objId, krId) { this._updateCurrentProject(p => {
         const obj = p.objectives.find(o => o.id === objId);
         if (obj) {
