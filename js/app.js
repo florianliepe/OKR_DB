@@ -8,7 +8,7 @@ auth.onAuthStateChanged(user => {
     if (user) {
         if (isLoginPage) {
             window.location.href = 'index.html';
-        } else if (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/')) {
+        } else if (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/') || window.location.pathname.endsWith('/OKR_DB/')) {
             initializeApp(user);
         }
     } else {
@@ -484,5 +484,6 @@ async function initializeApp(user) {
         ui.renderNavControls(project);
     }
     
+    // Initial call to start the application logic
     main();
 }
