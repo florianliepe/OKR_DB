@@ -102,13 +102,13 @@ export class UI {
                         </div>
                     </div>
                     <div class="col-12 col-md-6 col-lg-4">
-                        <label for="import-project-input" class="card project-card text-center h-100 bg-body-tertiary" style="cursor: pointer;">
+                        <div class="card project-card text-center h-100 bg-body-tertiary" id="import-project-card">
                             <div class="card-body d-flex flex-column justify-content-center">
                                 <i class="bi bi-upload fs-1"></i>
                                 <h5 class="card-title mt-3">Import Project</h5>
                                 <input type="file" id="import-project-input" accept=".json" style="display: none;">
                             </div>
-                        </label>
+                        </div>
                     </div>
                     ${activeProjects.map(p => this.renderProjectCard(p)).join('')}
                 </div>
