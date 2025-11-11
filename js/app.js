@@ -1,5 +1,6 @@
-import { Store as LocalStore } from './store.js'; // Keep for migration
-import { FirestoreStore as Store } from './firestore-store.js';
+import { auth, db } from './firebase-config.js';
+import { Store } from './store.js';
+import { UI } from './ui.js';
 
 // --- Auth Guard ---
 auth.onAuthStateChanged(user => {
@@ -8,8 +9,7 @@ auth.onAuthStateChanged(user => {
     if (user) {
         if (isLoginPage) {
             window.location.href = 'index.html';
-        } else {
-            // If user is logged in and NOT on the login page, initialize the app.
+        } else if (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/OKR_DB/')) {
             initializeApp(user);
         }
     } else {
@@ -18,7 +18,6 @@ auth.onAuthStateChanged(user => {
         }
     }
 });
-
 
 async function initializeApp(user) {
     const store = new Store();
@@ -208,7 +207,7 @@ async function initializeApp(user) {
         });
 
         addListener(document.getElementById('logout-btn'), 'click', () => {
-            signOut(auth).then(() => {
+            auth.signOut().then(() => {
                 ui.showToast('You have been logged out.', 'info');
             }).catch(error => {
                 console.error("Logout error:", error);
