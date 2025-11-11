@@ -1,27 +1,6 @@
-import { FirestoreStore as Store } from './firestore-store.js';
-import { UI } from './ui.js';
-
-// --- Auth Guard ---
-auth.onAuthStateChanged(user => {
-    const isLoginPage = window.location.pathname.endsWith('login.html');
-    
-    if (user) {
-        if (isLoginPage) {
-            window.location.href = 'index.html';
-        } else if (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/') || window.location.pathname.endsWith('/OKR_DB/')) {
-            initializeApp(user);
-        }
-    } else {
-        if (!isLoginPage) {
-            window.location.href = 'login.html';
-        }
-    }
-});
-
-
-async function initializeApp(user) {
+// This function will contain all the main application logic
+function initializeApp() {
     const store = new Store();
-    await store.loadAppData(); 
     const ui = new UI();
     let currentViewListeners = [];
 
@@ -29,6 +8,7 @@ async function initializeApp(user) {
     let explorerResponsibleFilter = 'all';
     let dashboardOwnerFilter = 'all';
     let dashboardResponsibleFilter = 'all';
+
 
     function cleanupListeners() {
         currentViewListeners.forEach(({ element, type, handler }) => element.removeEventListener(type, handler));
@@ -51,19 +31,19 @@ async function initializeApp(user) {
         [...tooltipTriggerList].forEach(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
     }
 
-    async function main() {
+    function main() {
         cleanupListeners();
         const currentProject = store.getCurrentProject();
         if (currentProject) {
-            await loadProject(currentProject);
+            loadProject(currentProject);
         } else {
-            await loadProjectSwitcher();
+            loadProjectSwitcher();
         }
     }
 
-    async function loadProjectSwitcher() {
+    function loadProjectSwitcher() {
         ui.renderProjectSwitcher(store.getProjects());
-        addListener(document.getElementById('app-container'), 'click', async e => {
+        addListener(document.getElementById('app-container'), 'click', e => {
             const card = e.target.closest('.project-card');
             const deleteBtn = e.target.closest('.delete-project-btn');
             const archiveBtn = e.target.closest('.archive-project-btn');
@@ -85,54 +65,54 @@ async function initializeApp(user) {
                 e.stopPropagation();
                 const projectId = deleteBtn.dataset.projectId, projectName = deleteBtn.dataset.projectName;
                 if (confirm(`Are you sure you want to PERMANENTLY DELETE the project "${projectName}"? This action cannot be undone.`)) {
-                    await store.deleteProject(projectId);
+                    store.deleteProject(projectId);
                     ui.showToast(`Project "${projectName}" deleted.`, 'danger');
-                    await main();
+                    main();
                 }
                 return;
             }
              if (archiveBtn) {
                 e.stopPropagation();
-                await store.archiveProject(archiveBtn.dataset.projectId);
+                store.archiveProject(archiveBtn.dataset.projectId);
                 ui.showToast('Project archived.', 'info');
-                await main();
+                main();
                 return;
             }
             if (unarchiveBtn) {
                 e.stopPropagation();
-                await store.unarchiveProject(unarchiveBtn.dataset.projectId);
+                store.unarchiveProject(unarchiveBtn.dataset.projectId);
                 ui.showToast('Project unarchived.');
-                await main();
+                main();
                 return;
             }
             if (cloneBtn) {
                 e.stopPropagation();
-                await store.cloneProject(cloneBtn.dataset.projectId);
+                store.cloneProject(cloneBtn.dataset.projectId);
                 ui.showToast('Project cloned successfully.');
-                await main();
+                main();
                 return;
             }
             if (card && card.id === 'create-new-project-card') {
                 ui.showModal('newProjectModal');
             } else if (card) {
                 store.setCurrentProjectId(card.dataset.projectId);
-                await main();
+                main();
             }
         });
 
         const importInput = document.getElementById('import-project-input');
         if (importInput) {
-            addListener(importInput, 'change', async e => {
+            addListener(importInput, 'change', e => {
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
-                reader.onload = async (event) => {
+                reader.onload = (event) => {
                     try {
                         const projectData = JSON.parse(event.target.result);
-                        const importedProject = await store.importProject(projectData);
+                        const importedProject = store.importProject(projectData);
                         if (importedProject) {
                             ui.showToast(`Project "${importedProject.name}" imported successfully.`);
-                            await main();
+                            main();
                         } else {
                             ui.showToast('Failed to import project. Invalid file format.', 'danger');
                         }
@@ -146,7 +126,7 @@ async function initializeApp(user) {
             });
         }
         
-        addListener(document.getElementById('new-project-form'), 'submit', async e => {
+        addListener(document.getElementById('new-project-form'), 'submit', e => {
             e.preventDefault();
             const projectName = document.getElementById('project-name').value;
             const initialData = {
@@ -155,28 +135,28 @@ async function initializeApp(user) {
                 vision: document.getElementById('project-vision').value,
                 teams: document.getElementById('project-teams').value.split('\n').filter(t => t.trim() !== '')
             };
-            const newProject = await store.createNewProject(initialData);
+            const newProject = store.createNewProject(initialData);
             store.setCurrentProjectId(newProject.id);
             ui.hideModal('newProjectModal');
             ui.showToast(`Project "${projectName}" created successfully!`);
-            await main();
+            main();
         });
     }
 
-    async function loadProject(project) {
+    function loadProject(project) {
         if (!window.location.hash || window.location.hash === '#') {
             window.location.hash = '#dashboard';
         }
         ui.renderMainLayout(project);
 
-        const handleGanttDateChange = async (task, start, end) => {
+        const handleGanttDateChange = (task, start, end) => {
             const formattedStart = start.toISOString().split('T')[0];
             const formattedEnd = end.toISOString().split('T')[0];
             
             if (confirm(`Change dates for "${task.name}" to ${formattedStart} - ${formattedEnd}?`)) {
                 const objective = project.objectives.find(o => o.id === task.id);
                 if (objective) {
-                    await store.updateObjective(task.id, { ...objective, startDate: formattedStart, endDate: formattedEnd });
+                    store.updateObjective(task.id, { ...objective, startDate: formattedStart, endDate: formattedEnd });
                     ui.showToast('Objective dates updated.');
                 }
             } else {
@@ -202,12 +182,16 @@ async function initializeApp(user) {
         };
 
         addListener(window, 'hashchange', router);
-        addListener(document.getElementById('back-to-projects'), async () => { 
-            window.location.hash = ''; store.setCurrentProjectId(null); await main(); 
+        
+        // **FIX IS HERE:** Moved this listener to the correct function
+        addListener(document.getElementById('back-to-projects'), 'click', () => { 
+            window.location.hash = ''; 
+            store.setCurrentProjectId(null); 
+            main(); 
         });
 
         addListener(document.getElementById('logout-btn'), 'click', () => {
-            signOut(auth).then(() => {
+            auth.signOut().then(() => {
                 ui.showToast('You have been logged out.', 'info');
             }).catch(error => {
                 console.error("Logout error:", error);
@@ -484,6 +468,5 @@ async function initializeApp(user) {
         ui.renderNavControls(project);
     }
     
-    // Initial call to start the application logic
     main();
 }
