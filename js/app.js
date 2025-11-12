@@ -18,14 +18,14 @@ async function initializeApp(user) {
     try {
         const store = new FirestoreStore(user.uid);
         await store.loadAppData(); 
-        run(store, ui);
+        run(store, ui, user.uid); // Pass uid into run
     } catch (error) {
         console.error("Fatal Error: Could not initialize Firestore data.", error);
         ui.showToast("Error loading your data. Please refresh the page.", "danger");
     }
 }
 
-function run(store, ui) {
+function run(store, ui, userId) { // Receive userId
     let currentViewListeners = [];
     let explorerResponsibleFilter = 'all';
     let dashboardOwnerFilter = 'all';
@@ -72,7 +72,7 @@ function run(store, ui) {
     }
 
     async function loadProjectSwitcher() {
-        ui.renderProjectSwitcher(store.getProjects());
+        ui.renderProjectSwitcher(store.getProjects(), userId);
         addListener(document.getElementById('app-container'), 'click', async e => {
             const card = e.target.closest('.project-card');
             const deleteBtn = e.target.closest('.delete-project-btn');
@@ -91,21 +91,16 @@ function run(store, ui) {
                 return;
             }
 
+            // This logic is now safe because the button won't even render if the user is not the owner.
             if (deleteBtn) {
                 e.stopPropagation();
                 const projectId = deleteBtn.dataset.projectId;
                 const projectName = deleteBtn.dataset.projectName;
-                store.setCurrentProjectId(projectId); // Temporarily set to check ownership
-                if (store.isCurrentUserOwner()) {
-                    if (confirm(`Are you sure you want to PERMANENTLY DELETE the project "${projectName}"? This action cannot be undone.`)) {
-                        await store.deleteProject(projectId);
-                        ui.showToast(`Project "${projectName}" deleted.`, 'danger');
-                    }
-                } else {
-                    ui.showToast('Only the project owner can delete this project.', 'danger');
+                if (confirm(`Are you sure you want to PERMANENTLY DELETE the project "${projectName}"? This action cannot be undone.`)) {
+                    await store.deleteProject(projectId);
+                    ui.showToast(`Project "${projectName}" deleted.`, 'danger');
+                    await main();
                 }
-                store.setCurrentProjectId(null); // Unset after operation
-                await main(); // Refresh the view
                 return;
             }
              if (archiveBtn) {
@@ -184,16 +179,14 @@ function run(store, ui) {
         if (!window.location.hash || window.location.hash === '#') {
             window.location.hash = '#dashboard';
         }
-        ui.renderMainLayout(project);
+        
+        const userRole = store.getCurrentUserRole();
+        ui.renderMainLayout(project, userRole);
 
         const router = () => {
-            // *** FIX: DO NOT CLEAN UP LISTENERS ON EVERY ROUTE CHANGE ***
-            // cleanupListeners(); // This was the bug. Removing it.
-            
             let currentProject = store.getCurrentProject();
             if (!currentProject) { main(); return; }
 
-            // Clean up specific listeners ONLY when leaving a view that has them.
             if (workbenchUnsubscribe) {
                 workbenchUnsubscribe();
                 workbenchUnsubscribe = null;
@@ -202,23 +195,27 @@ function run(store, ui) {
             const hash = window.location.hash || '#dashboard';
             ui.showView(hash.substring(1) + '-view');
             
+            const currentRole = store.getCurrentUserRole(); // Get role on each route change
+
             switch(hash) {
                 case '#dashboard': ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter); break;
-                case '#explorer': ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter); break;
-                case '#workbench': setupWorkbench(currentProject); break;
-                case '#gantt': ui.renderGanttView(currentProject, handleGanttDateChange); break;
+                case '#explorer': ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter, currentRole); break;
+                case '#workbench': setupWorkbench(currentProject, currentRole); break;
+                case '#gantt': ui.renderGanttView(currentProject); break;
                 case '#risk-board': ui.renderRiskBoardView(currentProject); break;
                 case '#reporting': ui.renderReportingView(currentProject); break;
-                case '#cycles': ui.renderCyclesView(currentProject); break;
-                case '#foundation': ui.renderFoundationView(currentProject); break;
+                case '#cycles': ui.renderCyclesView(currentProject, currentRole); break;
+                case '#foundation': ui.renderFoundationView(currentProject, false, currentRole); break;
             }
             initializeTooltips();
         };
         
-        const setupWorkbench = (project) => {
-            ui.renderWorkbenchView(project.workbenchContent);
+        const setupWorkbench = (project, userRole) => {
+            ui.renderWorkbenchView(project.workbenchContent, userRole);
             const editor = document.getElementById('workbench-editor');
             const status = document.getElementById('workbench-status');
+
+            if (userRole === 'viewer') return; // Viewers can't edit
 
             workbenchUnsubscribe = store.listenForWorkbenchUpdates(content => {
                 if (editor.value !== content) {
@@ -258,7 +255,6 @@ function run(store, ui) {
             }
         };
 
-        // These are the "global for project view" listeners. They are set up ONCE when a project loads.
         addListener(window, 'hashchange', router);
         addListener(document.getElementById('back-to-projects'), 'click', async () => { 
             window.location.hash = ''; 
@@ -290,7 +286,8 @@ function run(store, ui) {
         addListener(document.getElementById('search-input'), 'input', e => {
             const currentProject = store.getCurrentProject();
             if (!currentProject) return;
-            ui.renderExplorerView(currentProject, e.target.value, explorerResponsibleFilter);
+            const currentRole = store.getCurrentUserRole();
+            ui.renderExplorerView(currentProject, e.target.value, explorerResponsibleFilter, currentRole);
             initializeTooltips();
         });
         addListener(document.getElementById('cycle-selector-list'), 'click', async e => {
@@ -329,14 +326,22 @@ function run(store, ui) {
                 const currentProject = store.getCurrentProject();
                 const activeCycle = currentProject.cycles.find(c => c.id === cycleId);
                 ui.showToast(`Active cycle set to "${activeCycle.name}".`, 'info');
-                ui.renderCyclesView(currentProject); ui.renderNavControls(currentProject);
+                const currentRole = store.getCurrentUserRole();
+                ui.renderCyclesView(currentProject, currentRole); ui.renderNavControls(currentProject);
             }
-            if (e.target.id === 'edit-foundation-btn') ui.renderFoundationView(store.getCurrentProject(), true);
-            if (e.target.id === 'cancel-edit-foundation-btn') ui.renderFoundationView(store.getCurrentProject(), false);
+            if (e.target.id === 'edit-foundation-btn') {
+                const currentRole = store.getCurrentUserRole();
+                ui.renderFoundationView(store.getCurrentProject(), true, currentRole);
+            }
+            if (e.target.id === 'cancel-edit-foundation-btn') {
+                const currentRole = store.getCurrentUserRole();
+                ui.renderFoundationView(store.getCurrentProject(), false, currentRole);
+            }
         });
 
         addListener(document.getElementById('app-container'), 'change', async e => {
             let currentProject;
+            let currentRole;
             if (e.target.id === 'report-date-input') {
                 currentProject = store.getCurrentProject(); ui.renderReportingView(currentProject, e.target.value);
             }
@@ -347,11 +352,7 @@ function run(store, ui) {
                 dashboardResponsibleFilter = e.target.value; currentProject = store.getCurrentProject(); ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter);
             }
             if (e.target.id === 'explorer-filter-responsible') {
-                explorerResponsibleFilter = e.target.value; currentProject = store.getCurrentProject(); ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter); initializeTooltips();
-            }
-            if (e.target.classList.contains('member-role-select')) {
-                const result = await store.updateMember(e.target.dataset.uid, e.target.value);
-                ui.showToast(result.success ? 'Member role updated.' : result.message, result.success ? 'success' : 'danger');
+                explorerResponsibleFilter = e.target.value; currentProject = store.getCurrentProject(); currentRole = store.getCurrentUserRole(); ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter, currentRole); initializeTooltips();
             }
         });
         
@@ -362,13 +363,59 @@ function run(store, ui) {
                     const result = await store.removeMember(uid);
                      if (result.success) {
                         ui.showToast('Member removed.', 'success');
+                        const isOwner = store.getCurrentUserRole() === 'owner';
                         const members = await store.getProjectMembersWithData();
-                        ui.populateShareModal(members, store.isCurrentUserOwner());
+                        ui.populateShareModal(members, isOwner);
                     } else ui.showToast(result.message, 'danger');
                 }
             }
         });
+         addListener(document.getElementById('modal-container'), 'change', async e => {
+            if (e.target.classList.contains('member-role-select')) {
+                const result = await store.updateMember(e.target.dataset.uid, e.target.value);
+                ui.showToast(result.success ? 'Member role updated.' : result.message, result.success ? 'success' : 'danger');
+            }
+        });
+        
+        addListener(document, 'dragstart', e => { if (e.target.classList.contains('okr-card')) e.target.classList.add('dragging'); });
+        addListener(document, 'dragend', e => { if (e.target.classList.contains('okr-card')) e.target.classList.remove('dragging'); });
+        
+        addListener(document, 'dragover', e => {
+            const userRole = store.getCurrentUserRole();
+            if (userRole === 'viewer') return; // Don't allow drag/drop for viewers
+            e.preventDefault();
+            const container = e.target.closest('.objective-list'); if (!container) return;
+            const placeholder = document.createElement('div'); placeholder.classList.add('drag-over-placeholder');
+            const afterElement = getDragAfterElement(container, e.clientY);
+            container.querySelector('.drag-over-placeholder')?.remove();
+            if (afterElement == null) container.appendChild(placeholder);
+            else container.insertBefore(placeholder, afterElement);
+        });
 
+        addListener(document, 'drop', async e => {
+            const userRole = store.getCurrentUserRole();
+            if (userRole === 'viewer') return;
+            e.preventDefault();
+            const container = e.target.closest('.objective-list');
+            container?.querySelector('.drag-over-placeholder')?.remove();
+            const draggedElement = document.querySelector('.dragging');
+            if (!draggedElement || !container) return;
+            let newOrderedIds = [...container.querySelectorAll('.okr-card:not(.dragging)')].map(el => el.id);
+            const afterElement = getDragAfterElement(container, e.clientY);
+            if (afterElement == null) newOrderedIds.push(draggedElement.id);
+            else newOrderedIds.splice(newOrderedIds.indexOf(afterElement.id), 0, draggedElement.id);
+            await store.reorderObjectives(newOrderedIds); router(); ui.showToast('Objectives reordered.');
+        });
+        
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.okr-card:not(.dragging)')];
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect(); const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) return { offset: offset, element: child };
+                else return closest;
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+        
         addListener(document, 'submit', async e => {
             e.preventDefault();
             if (e.target.id === 'objective-form') {
@@ -407,7 +454,8 @@ function run(store, ui) {
                 ui.showToast(result.message, result.success ? 'success' : 'danger');
                 if (result.success) {
                     emailInput.value = '';
-                    const members = await store.getProjectMembersWithData(); ui.populateShareModal(members, store.isCurrentUserOwner());
+                    const isOwner = store.getCurrentUserRole() === 'owner';
+                    const members = await store.getProjectMembersWithData(); ui.populateShareModal(members, isOwner);
                 }
             }
         });
@@ -417,7 +465,8 @@ function run(store, ui) {
             const currentProject = store.getCurrentProject(); if (!currentProject) return;
 
             if (modal.id === 'shareProjectModal') {
-                const members = await store.getProjectMembersWithData(); ui.populateShareModal(members, store.isCurrentUserOwner());
+                const isOwner = store.getCurrentUserRole() === 'owner';
+                const members = await store.getProjectMembersWithData(); ui.populateShareModal(members, isOwner);
             }
 
             if (modal.id === 'objectiveModal' && trigger) {
@@ -458,12 +507,10 @@ function run(store, ui) {
                 } else { document.getElementById('kr-modal-title').textContent = 'Add Key Result'; document.getElementById('kr-current-value').value = 0; }
             }
         });
-
-        // Initial call to the router to render the correct view based on the current URL hash
+        
         router();
         ui.renderNavControls(project);
     }
     
-    // Initial call to start the application logic
     main();
 }
