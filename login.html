@@ -46,14 +46,9 @@
             </form>
         </div>
     </div>
-
-    <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     
-    <!-- Our Firebase Configuration and Auth Logic -->
-    <script src="js/firebase-config.js"></script>
-    <script src="js/auth.js"></script>
+    <!-- Auth script is now the single entry point for this page -->
+    <script type="module" src="js/auth.js"></script>
 
 </body>
 </html>
