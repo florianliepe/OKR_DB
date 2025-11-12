@@ -1,3 +1,5 @@
+// js/ui.js
+
 export class UI {
     constructor() {
         this.appContainer = document.getElementById('app-container');
@@ -407,25 +409,18 @@ export class UI {
         const view = document.getElementById('gantt-view');
         if (!view) return;
         const activeCycle = project.cycles.find(c => c.status === 'Active');
-        if (!activeCycle) { view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>'; return; }
+        if (!activeCycle) { view.innerHTML = '<div class="alert alert-warning">No active cycle found.</div>'; return; }
         const objectivesForGantt = project.objectives
             .filter(obj => obj.cycleId === activeCycle.id && obj.startDate && obj.endDate)
             .map(obj => ({
-                id: obj.id,
-                name: obj.title,
-                start: obj.startDate,
-                end: obj.endDate,
-                progress: obj.progress,
-                dependencies: obj.dependsOn?.join(',') || ''
+                id: obj.id, name: obj.title, start: obj.startDate, end: obj.endDate,
+                progress: obj.progress, dependencies: obj.dependsOn?.join(',') || ''
             }));
-        if (objectivesForGantt.length === 0) { view.innerHTML = '<div class="alert alert-info">No objectives with start and end dates found in this cycle. Please edit objectives to add dates for them to appear on the Gantt chart.</div>'; return; }
+        if (objectivesForGantt.length === 0) { view.innerHTML = '<div class="alert alert-info">No objectives with dates found.</div>'; return; }
         view.innerHTML = '<svg id="gantt-chart"></svg>';
         new Gantt("#gantt-chart", objectivesForGantt, {
-            on_date_change: (task, start, end) => {
-                onDateChangeCallback(task, start, end);
-            },
-            header_height: 50, column_width: 30, step: 24,
-            view_modes: ['Quarter Day', 'Half Day', 'Day', 'Week', 'Month'],
+            on_date_change: (task, start, end) => onDateChangeCallback(task, start, end),
+            header_height: 50, column_width: 30, step: 24, view_modes: ['Day', 'Week', 'Month'],
             bar_height: 20, bar_corner_radius: 3, arrow_curve: 5, padding: 18,
             view_mode: 'Week', date_format: 'YYYY-MM-DD', language: 'en'
         });
@@ -434,35 +429,24 @@ export class UI {
     renderDashboardView(project, filterOwnerId = 'all', filterResponsible = 'all') {
         const view = document.getElementById('dashboard-view');
         if (!view) return;
-
         this.destroyCharts();
-
         const activeCycle = project.cycles.find(c => c.status === 'Active');
         const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
         const ownerFilterOptionsHtml = owners.map(owner => `<option value="${owner.id}" ${filterOwnerId === owner.id ? 'selected' : ''}>${owner.name}</option>`).join('');
-        
         let contentHtml;
-        let responsibleFilterOptionsHtml = ''; 
+        let responsibleFilterOptionsHtml = '';
         let objectivesInCycleForCharts = [];
-
         if (!activeCycle) {
-            contentHtml = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>';
+            contentHtml = '<div class="alert alert-warning">No active cycle found.</div>';
         } else {
             let objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
-            objectivesInCycleForCharts = objectivesInCycle; 
-            
+            objectivesInCycleForCharts = objectivesInCycle;
             const responsibles = [...new Set(objectivesInCycle.map(o => o.responsible).filter(Boolean))];
             responsibleFilterOptionsHtml = responsibles.map(r => `<option value="${r}" ${filterResponsible === r ? 'selected' : ''}>${r}</option>`).join('');
-
-            if (filterOwnerId !== 'all') {
-                objectivesInCycle = objectivesInCycle.filter(o => o.ownerId === filterOwnerId);
-            }
-            if (filterResponsible !== 'all') {
-                objectivesInCycle = objectivesInCycle.filter(o => o.responsible === filterResponsible);
-            }
-
+            if (filterOwnerId !== 'all') objectivesInCycle = objectivesInCycle.filter(o => o.ownerId === filterOwnerId);
+            if (filterResponsible !== 'all') objectivesInCycle = objectivesInCycle.filter(o => o.responsible === filterResponsible);
             if (objectivesInCycle.length === 0) {
-                contentHtml = '<div class="alert alert-info">No objectives match the current filter in this cycle.</div>';
+                contentHtml = '<div class="alert alert-info">No objectives match the current filter.</div>';
             } else {
                 const totalProgress = objectivesInCycle.reduce((sum, obj) => sum + obj.progress, 0);
                 const overallAverage = Math.round(totalProgress / objectivesInCycle.length);
@@ -476,161 +460,157 @@ export class UI {
                 const onTrackPercent = krHealth.Total > 0 ? (krHealth['On Track'] / krHealth.Total * 100) : 0;
                 const atRiskPercent = krHealth.Total > 0 ? (krHealth['At Risk'] / krHealth.Total * 100) : 0;
                 const offTrackPercent = krHealth.Total > 0 ? (krHealth['Off Track'] / krHealth.Total * 100) : 0;
-
                 const progressByOwner = owners.map(owner => {
                     const ownerObjectives = project.objectives.filter(o => o.cycleId === activeCycle.id && o.ownerId === owner.id);
                     if (ownerObjectives.length === 0) return null;
                     const ownerTotalProgress = ownerObjectives.reduce((sum, obj) => sum + obj.progress, 0);
                     return { name: owner.name, progress: Math.round(ownerTotalProgress / ownerObjectives.length) };
                 }).filter(Boolean);
-
                 const progressByOwnerWidget = (filterOwnerId === 'all' && filterResponsible === 'all') ? `
-                    <div class="col-md-6">
-                        <div class="card dashboard-card">
-                            <div class="card-body">
-                                <h5 class="card-title text-muted">Progress by Owner</h5>
-                                <ul class="list-group list-group-flush">
-                                    ${progressByOwner.map(owner => `
-                                    <li class="list-group-item bg-transparent"><div class="d-flex justify-content-between"><span>${owner.name}</span><strong>${owner.progress}%</strong></div><div class="progress mt-1" style="height: 0.5rem;"><div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;" ></div></div></li>`).join('')}
-                                </ul>
-                            </div>
-                        </div>
+                    <div class="col-xl-6">
+                        <div class="card dashboard-card h-100"><div class="card-body"><h5 class="card-title text-muted">Progress by Owner</h5><ul class="list-group list-group-flush">${progressByOwner.map(owner => `<li class="list-group-item bg-transparent"><div class="d-flex justify-content-between"><span>${owner.name}</span><strong>${owner.progress}%</strong></div><div class="progress mt-1" style="height: 0.5rem;"><div class="progress-bar bg-secondary" role="progressbar" style="width: ${owner.progress}%;"></div></div></li>`).join('')}</ul></div></div>
                     </div>` : '';
 
                 contentHtml = `
                     <div class="row g-4">
                         <div class="col-12">
-                            <div class="card dashboard-card">
-                                <div class="card-body">
-                                    <h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5>
-                                    <h2 class="display-4">${overallAverage}%</h2>
-                                    <div class="progress" style="height: 2rem;">
-                                        <div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div>
-                                    </div>
-                                </div>
-                            </div>
+                            <div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5><h2 class="display-4">${overallAverage}%</h2><div class="progress" style="height: 2rem;"><div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}"></div></div></div></div>
                         </div>
                         ${progressByOwnerWidget}
-                        <div class="${(filterOwnerId === 'all' && filterResponsible === 'all') ? 'col-md-6' : 'col-12'}">
-                            <div class="card dashboard-card">
-                                <div class="card-body">
-                                    <h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5>
-                                    <div class="d-flex justify-content-around align-items-center text-center mt-4">
-                                        <div class="health-stat"><div class="stat-value text-success">${krHealth['On Track']}</div><div class="stat-label">On Track</div></div>
-                                        <div class="health-stat"><div class="stat-value text-warning">${krHealth['At Risk']}</div><div class="stat-label">At Risk</div></div>
-                                        <div class="health-stat"><div class="stat-value text-danger">${krHealth['Off Track']}</div><div class="stat-label">Off Track</div></div>
-                                    </div>
-                                    <div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;">
-                                        <div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div>
-                                        <div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div>
-                                        <div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div>
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="${(filterOwnerId === 'all' && filterResponsible === 'all') ? 'col-xl-6' : 'col-12'}">
+                            <div class="card dashboard-card h-100"><div class="card-body"><h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5><div class="d-flex justify-content-around align-items-center text-center mt-4"><div class="health-stat"><div class="stat-value text-success">${krHealth['On Track']}</div><div class="stat-label">On Track</div></div><div class="health-stat"><div class="stat-value text-warning">${krHealth['At Risk']}</div><div class="stat-label">At Risk</div></div><div class="health-stat"><div class="stat-value text-danger">${krHealth['Off Track']}</div><div class="stat-label">Off Track</div></div></div><div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;"><div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div><div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div><div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div></div></div></div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="card dashboard-card">
-                                <div class="card-body">
-                                    <h5 class="card-title text-muted">Health Trend (Last 30 Days)</h5>
-                                    <canvas id="health-trend-chart"></canvas>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card dashboard-card">
-                                <div class="card-body">
-                                    <h5 class="card-title text-muted">Progress Velocity (WoW)</h5>
-                                    <canvas id="velocity-chart"></canvas>
-                                </div>
-                            </div>
-                        </div>
+                        <div class="col-xl-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">KR Burndown</h5><canvas id="burndown-chart"></canvas></div></div></div>
+                        <div class="col-xl-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Progress Velocity (WoW)</h5><canvas id="velocity-chart"></canvas></div></div></div>
+                        <div class="col-12"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Health Trend (Last 30 Days)</h5><canvas id="health-trend-chart"></canvas></div></div></div>
                     </div>`;
             }
         }
-        
-        view.innerHTML = `
-            <div class="row g-3 justify-content-end mb-3">
-                <div class="col-md-4">
-                    <label for="dashboard-filter-owner" class="form-label">Filter by Owner</label>
-                    <select id="dashboard-filter-owner" class="form-select">
-                        <option value="all" ${filterOwnerId === 'all' ? 'selected' : ''}>All Owners</option>
-                        ${ownerFilterOptionsHtml}
-                    </select>
-                </div>
-                 <div class="col-md-4">
-                    <label for="dashboard-filter-responsible" class="form-label">Filter by Responsible</label>
-                    <select id="dashboard-filter-responsible" class="form-select">
-                        <option value="all" ${filterResponsible === 'all' ? 'selected' : ''}>All Responsible</option>
-                        ${responsibleFilterOptionsHtml}
-                    </select>
-                </div>
-            </div>
-            ${contentHtml}`;
-        
+        view.innerHTML = `<div class="row g-3 justify-content-end mb-3"><div class="col-md-4"><label for="dashboard-filter-owner" class="form-label">Filter by Owner</label><select id="dashboard-filter-owner" class="form-select"><option value="all" ${filterOwnerId === 'all' ? 'selected' : ''}>All Owners</option>${ownerFilterOptionsHtml}</select></div><div class="col-md-4"><label for="dashboard-filter-responsible" class="form-label">Filter by Responsible</label><select id="dashboard-filter-responsible" class="form-select"><option value="all" ${filterResponsible === 'all' ? 'selected' : ''}>All</option>${responsibleFilterOptionsHtml}</select></div></div>${contentHtml}`;
         if (objectivesInCycleForCharts && objectivesInCycleForCharts.length > 0) {
             this._renderHealthTrendChart(objectivesInCycleForCharts);
             this._renderVelocityChart(objectivesInCycleForCharts);
+            this._renderBurndownChart(project);
         }
+    }
+
+    _renderBurndownChart(project) {
+        const ctx = document.getElementById('burndown-chart')?.getContext('2d');
+        if (!ctx) return;
+        const activeCycle = project.cycles.find(c => c.status === 'Active');
+        if (!activeCycle || !activeCycle.startDate || !activeCycle.endDate) {
+            ctx.canvas.parentElement.innerHTML = '<div class="text-center text-muted p-3">Cycle start and end dates must be set to generate a burndown chart.</div>';
+            return;
+        }
+
+        const allKrs = project.objectives.filter(o => o.cycleId === activeCycle.id).flatMap(o => o.keyResults);
+        const startDate = new Date(activeCycle.startDate + 'T00:00:00');
+        const endDate = new Date(activeCycle.endDate + 'T00:00:00');
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        
+        const labels = [];
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            labels.push(d.toISOString().split('T')[0]);
+        }
+
+        const totalKrsOnTrackStart = allKrs.filter(kr => {
+            const firstHistory = kr.history?.[0];
+            return firstHistory?.date <= activeCycle.startDate && firstHistory?.confidence === 'On Track';
+        }).length;
+
+        const idealData = [];
+        const daysInCycle = (endDate - startDate) / (1000 * 60 * 60 * 24);
+        if (daysInCycle > 0) {
+            for (let i = 0; i <= daysInCycle; i++) {
+                idealData.push(totalKrsOnTrackStart - (totalKrsOnTrackStart / daysInCycle) * i);
+            }
+        }
+
+        const actualData = [];
+        for (const day of labels) {
+            const currentDay = new Date(day + 'T00:00:00');
+            if(currentDay > today) {
+                actualData.push(null); // Don't plot future data
+                continue;
+            }
+            let onTrackCount = 0;
+            for (const kr of allKrs) {
+                const relevantHistory = kr.history?.filter(h => h.date <= day).sort((a,b) => new Date(b.date) - new Date(a.date));
+                if (relevantHistory && relevantHistory.length > 0 && relevantHistory[0].confidence === 'On Track') {
+                    onTrackCount++;
+                }
+            }
+            actualData.push(onTrackCount);
+        }
+
+        this.charts.burndown = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels.map(l => new Date(l+'T00:00:00').toLocaleDateString(undefined, {month: 'short', day: 'numeric'})),
+                datasets: [{
+                    label: 'Actual Burndown',
+                    data: actualData,
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    tension: 0.1,
+                    spanGaps: true
+                },{
+                    label: 'Ideal Burndown',
+                    data: idealData,
+                    borderColor: 'rgba(255, 99, 132, 0.5)',
+                    borderDash: [5, 5],
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    y: { beginAtZero: true, ticks: { color: '#adb5bd', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)' } },
+                    x: { ticks: { color: '#adb5bd', maxRotation: 45, minRotation: 45 }, grid: { color: 'rgba(255,255,255,0.1)' } }
+                },
+                plugins: { legend: { labels: { color: '#adb5bd' } } }
+            }
+        });
     }
 
     _renderHealthTrendChart(objectives) {
         const ctx = document.getElementById('health-trend-chart')?.getContext('2d');
         if (!ctx) return;
-
         const labels = [];
         const today = new Date();
         for (let i = 29; i >= 0; i--) {
-            const date = new Date(today);
-            date.setDate(date.getDate() - i);
-            labels.push(date.toISOString().split('T')[0]);
+            const date = new Date(today); date.setDate(date.getDate() - i); labels.push(date.toISOString().split('T')[0]);
         }
-
         const dailyCounts = {};
-        labels.forEach(label => {
-            dailyCounts[label] = { 'On Track': 0, 'At Risk': 0, 'Off Track': 0 };
-        });
-
+        labels.forEach(label => { dailyCounts[label] = { 'On Track': 0, 'At Risk': 0, 'Off Track': 0 }; });
         const allKrs = objectives.flatMap(o => o.keyResults);
         allKrs.forEach(kr => {
             if (!kr.history || kr.history.length === 0) return;
-
             const sortedHistory = [...kr.history].sort((a, b) => new Date(a.date) - new Date(b.date));
             let historyIndex = 0;
-
             for (const label of labels) {
-                while (historyIndex < sortedHistory.length - 1 && sortedHistory[historyIndex + 1].date <= label) {
-                    historyIndex++;
-                }
+                while (historyIndex < sortedHistory.length - 1 && sortedHistory[historyIndex + 1].date <= label) historyIndex++;
                 const currentConfidence = sortedHistory[historyIndex].confidence || 'On Track';
-                 if (new Date(sortedHistory[0].date) <= new Date(label)) {
-                    dailyCounts[label][currentConfidence]++;
-                }
+                 if (new Date(sortedHistory[0].date) <= new Date(label)) dailyCounts[label][currentConfidence]++;
             }
         });
-
         const datasets = {
             'On Track': { data: [], color: 'rgba(25, 135, 84, 0.7)' },
             'At Risk': { data: [], color: 'rgba(255, 193, 7, 0.7)' },
             'Off Track': { data: [], color: 'rgba(220, 53, 69, 0.7)' }
         };
-
         labels.forEach(label => {
             datasets['On Track'].data.push(dailyCounts[label]['On Track']);
             datasets['At Risk'].data.push(dailyCounts[label]['At Risk']);
             datasets['Off Track'].data.push(dailyCounts[label]['Off Track']);
         });
-
         this.charts.healthTrend = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels.map(l => new Date(l).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})),
                 datasets: Object.keys(datasets).map(key => ({
-                    label: key,
-                    data: datasets[key].data,
-                    borderColor: datasets[key].color,
-                    backgroundColor: datasets[key].color,
-                    tension: 0.1,
-                    fill: false
+                    label: key, data: datasets[key].data, borderColor: datasets[key].color,
+                    backgroundColor: datasets[key].color, tension: 0.1, fill: false
                 }))
             },
             options: {
@@ -645,7 +625,6 @@ export class UI {
 
     _calculateHistoricProgress(objectives, reportDate) {
         if (!objectives || objectives.length === 0) return 0;
-        
         let totalProgress = 0;
         objectives.forEach(obj => {
             let objProgress = 0;
@@ -653,14 +632,10 @@ export class UI {
                 const krTotal = obj.keyResults.reduce((sum, kr) => {
                     let currentValue = Number(kr.startValue);
                     if (kr.history && kr.history.length > 0) {
-                        const relevantHistory = kr.history.filter(h => h.date <= reportDate);
-                        if (relevantHistory.length > 0) {
-                            relevantHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
-                            currentValue = Number(relevantHistory[0].value);
-                        }
+                        const relevantHistory = kr.history.filter(h => h.date <= reportDate).sort((a, b) => new Date(b.date) - new Date(a.date));
+                        if (relevantHistory.length > 0) currentValue = Number(relevantHistory[0].value);
                     }
-                    const start = Number(kr.startValue);
-                    const target = Number(kr.targetValue);
+                    const start = Number(kr.startValue), target = Number(kr.targetValue);
                     if (target === start) return sum + 100;
                     return sum + Math.max(0, Math.min(100, ((currentValue - start) / (target - start)) * 100));
                 }, 0);
@@ -674,33 +649,23 @@ export class UI {
     _renderVelocityChart(objectives) {
         const ctx = document.getElementById('velocity-chart')?.getContext('2d');
         if (!ctx) return;
-
         const weeklyProgress = [];
         const labels = [];
         const today = new Date();
-
-        for (let i = 4; i >= 0; i--) { // 5 points for 4 weeks of change
-            const date = new Date(today);
-            date.setDate(date.getDate() - (i * 7));
+        for (let i = 4; i >= 0; i--) {
+            const date = new Date(today); date.setDate(date.getDate() - (i * 7));
             const dateString = date.toISOString().split('T')[0];
             weeklyProgress.push(this._calculateHistoricProgress(objectives, dateString));
-            if (i < 4) {
-                 labels.push(`Week of ${new Date(date.setDate(date.getDate() - 6)).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}`);
-            }
+            if (i < 4) labels.push(`Week of ${new Date(date.setDate(date.getDate() - 6)).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}`);
         }
-        
         const velocities = [];
-        for (let i = 1; i < weeklyProgress.length; i++) {
-            velocities.push(weeklyProgress[i] - weeklyProgress[i-1]);
-        }
-        
+        for (let i = 1; i < weeklyProgress.length; i++) velocities.push(weeklyProgress[i] - weeklyProgress[i-1]);
         this.charts.velocity = new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Weekly Progress Change (%)',
-                    data: velocities,
+                    label: 'Weekly Progress Change (%)', data: velocities,
                     backgroundColor: velocities.map(v => v >= 0 ? 'rgba(25, 135, 84, 0.7)' : 'rgba(220, 53, 69, 0.7)')
                 }]
             },
@@ -736,15 +701,12 @@ export class UI {
         const view = document.getElementById('explorer-view');
         if (!view) return;
         const activeCycle = project.cycles.find(c => c.status === 'Active');
-        if (!activeCycle) { view.innerHTML = '<div class="alert alert-warning">No active cycle found. Please go to "Cycle Management" to set an active cycle.</div>'; return; }
+        if (!activeCycle) { view.innerHTML = '<div class="alert alert-warning">No active cycle found.</div>'; return; }
         let objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
         const responsibles = [...new Set(objectivesInCycle.map(o => o.responsible).filter(Boolean))];
         const responsibleFilterOptionsHtml = responsibles.map(r => `<option value="${r}" ${filterResponsible === r ? 'selected' : ''}>${r}</option>`).join('');
-
         let objectivesToRender = objectivesInCycle;
-        if (filterResponsible !== 'all') {
-            objectivesToRender = objectivesToRender.filter(o => o.responsible === filterResponsible);
-        }
+        if (filterResponsible !== 'all') objectivesToRender = objectivesToRender.filter(o => o.responsible === filterResponsible);
         if (searchTerm) {
             const lowercasedTerm = searchTerm.toLowerCase();
             objectivesToRender = objectivesToRender.filter(o => o.title.toLowerCase().includes(lowercasedTerm) || (o.notes && o.notes.toLowerCase().includes(lowercasedTerm)) || o.keyResults.some(kr => kr.title.toLowerCase().includes(lowercasedTerm)));
@@ -755,25 +717,10 @@ export class UI {
             const teamObjectives = objectivesToRender.filter(o => o.ownerId === team.id);
             html += this.renderObjectiveGroup(team.name, teamObjectives, project, objectivesInCycle, searchTerm);
         });
-
-        const filterHtml = `
-            <div class="d-flex justify-content-end mb-3">
-                <div class="col-md-4">
-                    <label for="explorer-filter-responsible" class="form-label">Filter by Responsible</label>
-                    <select id="explorer-filter-responsible" class="form-select">
-                        <option value="all">All Responsible</option>
-                        ${responsibleFilterOptionsHtml}
-                    </select>
-                </div>
-            </div>`;
-
-        if (!html && (searchTerm || filterResponsible !== 'all')) { 
-            view.innerHTML = filterHtml + `<div class="text-center p-5"><h3>No results for the current filter.</h3></div>`; 
-        } else if (!html) { 
-            view.innerHTML = filterHtml + '<div class="text-center p-5 bg-body-secondary rounded"><h3>No Objectives for this Cycle</h3><p>Click "Add Objective" to begin.</p></div>'; 
-        } else { 
-            view.innerHTML = filterHtml + html; 
-        }
+        const filterHtml = `<div class="d-flex justify-content-end mb-3"><div class="col-md-4"><label for="explorer-filter-responsible" class="form-label">Filter by Responsible</label><select id="explorer-filter-responsible" class="form-select"><option value="all">All</option>${responsibleFilterOptionsHtml}</select></div></div>`;
+        if (!html && (searchTerm || filterResponsible !== 'all')) view.innerHTML = filterHtml + `<div class="text-center p-5"><h3>No results.</h3></div>`; 
+        else if (!html) view.innerHTML = filterHtml + '<div class="text-center p-5 bg-body-secondary rounded"><h3>No Objectives.</h3><p>Click "Add Objective" to begin.</p></div>'; 
+        else view.innerHTML = filterHtml + html; 
     }
 
     renderObjectiveGroup(groupName, objectives, project, allObjectivesInCycle, searchTerm) {
@@ -797,38 +744,29 @@ export class UI {
         const blocksList = allObjectivesInCycle.filter(o => o.dependsOn?.includes(objective.id)).map(o => o.title).join('<br>');
         const blocksTooltip = blocksList ? `<strong>Blocks:</strong><br>${blocksList}` : '';
         const blocksCount = allObjectivesInCycle.filter(o => o.dependsOn?.includes(objective.id)).length;
-        const dependsOnBadge = dependsOnCount > 0 ? `<span class="badge bg-secondary ms-2" data-bs-toggle="tooltip" data-bs-html="true" title="${dependsOnTooltip}"><i class="bi bi-arrow-down"></i> Depends on ${dependsOnCount}</span>` : '';
-        const blocksBadge = blocksCount > 0 ? `<span class="badge bg-warning text-dark ms-2" data-bs-toggle="tooltip" data-bs-html="true" title="${blocksTooltip}"><i class="bi bi-arrow-up"></i> Blocks ${blocksCount}</span>` : '';
+        const dependsOnBadge = dependsOnCount > 0 ? `<span class="badge bg-secondary ms-2" data-bs-toggle="tooltip" data-bs-html="true" title="${dependsOnTooltip}"><i class="bi bi-arrow-down"></i> ${dependsOnCount}</span>` : '';
+        const blocksBadge = blocksCount > 0 ? `<span class="badge bg-warning text-dark ms-2" data-bs-toggle="tooltip" data-bs-html="true" title="${blocksTooltip}"><i class="bi bi-arrow-up"></i> ${blocksCount}</span>` : '';
         const responsibleHtml = objective.responsible ? `<span class="responsible-person ms-2"><i class="bi bi-person-fill"></i> ${objective.responsible}</span>` : '';
 
         return `
             <div class="card okr-card" id="${objective.id}" draggable="true">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <div>
-                        <h5 class="mb-0 d-inline">${highlightedTitle}</h5>
-                        ${dependsOnBadge}
-                        ${blocksBadge}
-                        ${responsibleHtml}
-                    </div>
+                    <div><h5 class="mb-0 d-inline">${highlightedTitle}</h5>${dependsOnBadge}${blocksBadge}${responsibleHtml}</div>
                     <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-secondary edit-obj-btn" data-bs-toggle="modal" data-bs-target="#objectiveModal" data-objective-id="${objective.id}"><i class="bi bi-pencil"></i></button>
+                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#objectiveModal" data-objective-id="${objective.id}"><i class="bi bi-pencil"></i></button>
                         <button class="btn btn-sm btn-outline-danger delete-obj-btn" data-objective-id="${objective.id}"><i class="bi bi-trash"></i></button>
                     </div>
                 </div>
                 <div class="card-body">
                     <div class="progress mb-3" style="height: 1.5rem;">
-                        <div class="progress-bar" role="progressbar" style="width: ${objective.progress}%;" aria-valuenow="${objective.progress}" aria-valuemin="0" aria-valuemax="100">
+                        <div class="progress-bar" role="progressbar" style="width: ${objective.progress}%;" aria-valuenow="${objective.progress}">
                             <span class="progress-bar-label">${objective.progress}%</span>
                         </div>
                     </div>
                     ${notesHtml}
-                    <div class="key-results-list">
-                        ${objective.keyResults.map(kr => this.renderKeyResult(kr, objective.id, searchTerm)).join('')}
-                    </div>
+                    <div class="key-results-list">${objective.keyResults.map(kr => this.renderKeyResult(kr, objective.id, searchTerm)).join('')}</div>
                 </div>
-                <div class="card-footer text-end">
-                    <button class="btn btn-sm btn-primary add-kr-btn" data-bs-toggle="modal" data-bs-target="#keyResultModal" data-objective-id="${objective.id}"><i class="bi bi-plus-circle"></i> Add Key Result</button>
-                </div>
+                <div class="card-footer text-end"><button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#keyResultModal" data-objective-id="${objective.id}"><i class="bi bi-plus-circle"></i> Add Key Result</button></div>
             </div>`;
     }
 
@@ -839,25 +777,17 @@ export class UI {
         const confidenceColors = { 'On Track': 'bg-success', 'At Risk': 'bg-warning', 'Off Track': 'bg-danger' };
         const badgeColor = confidenceColors[confidence];
         const sparklineHtml = this._createSparklineSVG(kr.history);
-        const notesIcon = (kr.notes && kr.notes.trim() !== '') 
-            ? `<i class="bi bi-sticky text-muted ms-2" data-bs-toggle="tooltip" title="${kr.notes}"></i>` 
-            : '';
+        const notesIcon = (kr.notes && kr.notes.trim() !== '') ? `<i class="bi bi-sticky text-muted ms-2" data-bs-toggle="tooltip" title="${kr.notes}"></i>` : '';
         return `
             <div class="kr-item">
-                <div class="kr-title">
-                    <span class="badge ${badgeColor} me-2">${confidence}</span>
-                    ${highlightedKrTitle}
-                    ${notesIcon}
-                </div>
+                <div class="kr-title"><span class="badge ${badgeColor} me-2">${confidence}</span>${highlightedKrTitle}${notesIcon}</div>
                 <div class="kr-progress-container">
                     ${sparklineHtml}
                     <small class="text-muted d-flex justify-content-between"><span>${kr.currentValue}</span> <span>of ${kr.targetValue}</span></small>
-                    <div class="progress" style="--bs-progress-height: 0.75rem;">
-                        <div class="progress-bar bg-info" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100"></div>
-                    </div>
+                    <div class="progress" style="--bs-progress-height: 0.75rem;"><div class="progress-bar bg-info" role="progressbar" style="width: ${progress}%;"></div></div>
                 </div>
                 <div class="kr-actions">
-                    <button class="btn btn-sm btn-outline-secondary edit-kr-btn" data-bs-toggle="modal" data-bs-target="#keyResultModal" data-objective-id="${objectiveId}" data-kr-id="${kr.id}"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#keyResultModal" data-objective-id="${objectiveId}" data-kr-id="${kr.id}"><i class="bi bi-pencil"></i></button>
                     <button class="btn btn-sm btn-outline-danger delete-kr-btn" data-objective-id="${objectiveId}" data-kr-id="${kr.id}"><i class="bi bi-trash"></i></button>
                 </div>
             </div>`;
@@ -869,27 +799,10 @@ export class UI {
         view.innerHTML = `
             <div class="row g-4">
                 <div class="col-md-5">
-                    <div class="card">
-                        <div class="card-header"><h4>Add New Cycle</h4></div>
-                        <div class="card-body">
-                            <form id="new-cycle-form">
-                                <div class="mb-3"><label for="cycle-name" class="form-label">Cycle Name</label><input type="text" class="form-control" id="cycle-name" placeholder="e.g., Q1 2024" required></div>
-                                <div class="mb-3"><label for="cycle-start-date" class="form-label">Start Date</label><input type="date" class="form-control" id="cycle-start-date" required></div>
-                                <div class="mb-3"><label for="cycle-end-date" class="form-label">End Date</label><input type="date" class="form-control" id="cycle-end-date" required></div>
-                                <button type="submit" class="btn btn-primary">Add Cycle</button>
-                            </form>
-                        </div>
-                    </div>
+                    <div class="card"><div class="card-header"><h4>Add New Cycle</h4></div><div class="card-body"><form id="new-cycle-form"><div class="mb-3"><label for="cycle-name" class="form-label">Name</label><input type="text" class="form-control" id="cycle-name" required></div><div class="mb-3"><label for="cycle-start-date" class="form-label">Start Date</label><input type="date" class="form-control" id="cycle-start-date" required></div><div class="mb-3"><label for="cycle-end-date" class="form-label">End Date</label><input type="date" class="form-control" id="cycle-end-date" required></div><button type="submit" class="btn btn-primary">Add Cycle</button></form></div></div>
                 </div>
                 <div class="col-md-7">
-                    <div class="card">
-                        <div class="card-header"><h4>Existing Cycles</h4></div>
-                        <div class="card-body">
-                            <ul class="list-group" id="cycle-list">
-                                ${project.cycles.length > 0 ? project.cycles.map(c => this.renderCycleListItem(c, project.cycles.length)).join('') : '<li class="list-group-item">No cycles created yet.</li>'}
-                            </ul>
-                        </div>
-                    </div>
+                    <div class="card"><div class="card-header"><h4>Existing Cycles</h4></div><div class="card-body"><ul class="list-group" id="cycle-list">${project.cycles.length > 0 ? project.cycles.map(c => this.renderCycleListItem(c, project.cycles.length)).join('') : '<li class="list-group-item">No cycles.</li>'}</ul></div></div>
                 </div>
             </div>`;
     }
@@ -899,13 +812,10 @@ export class UI {
         const deleteDisabled = isActive || totalCycles <= 1;
         return `
             <li class="list-group-item d-flex justify-content-between align-items-center">
-                <div>
-                    <h6 class="mb-0">${cycle.name} ${isActive ? '<span class="badge bg-success ms-2">Active</span>' : ''}</h6>
-                    <small class="text-muted">${cycle.startDate} to ${cycle.endDate}</small>
-                </div>
+                <div><h6 class="mb-0">${cycle.name} ${isActive ? '<span class="badge bg-success ms-2">Active</span>' : ''}</h6><small class="text-muted">${cycle.startDate} to ${cycle.endDate}</small></div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-sm btn-outline-success set-active-cycle-btn" data-cycle-id="${cycle.id}" ${isActive ? 'disabled' : ''}>Set Active</button>
-                    <button class="btn btn-sm btn-outline-danger delete-cycle-btn" data-cycle-id="${cycle.id}" ${deleteDisabled ? 'disabled' : ''} title="${deleteDisabled ? 'Cannot delete the active or only cycle' : 'Delete cycle'}"><i class="bi bi-trash"></i></button>
+                    <button class="btn btn-sm btn-outline-danger delete-cycle-btn" data-cycle-id="${cycle.id}" ${deleteDisabled ? 'disabled' : ''} title="${deleteDisabled ? 'Cannot delete' : 'Delete'}"><i class="bi bi-trash"></i></button>
                 </div>
             </li>`;
     }
@@ -915,51 +825,12 @@ export class UI {
         if (!view) return;
         const mission = project.foundation.mission || '';
         const vision = project.foundation.vision || '';
-        const displayView = `
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4>
-                    <button class="btn btn-outline-secondary" id="edit-foundation-btn"><i class="bi bi-pencil"></i> Edit</button>
-                </div>
-                <div class="card-body">
-                    <p class="fs-5">${mission.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p>
-                </div>
-            </div>
-            <div class="card">
-                <div class="card-header">
-                    <h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4>
-                </div>
-                <div class="card-body">
-                    <p class="fs-5">${vision.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p>
-                </div>
-            </div>`;
-        const editView = `
-            <form id="foundation-form">
-                <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4>
-                    </div>
-                    <div class="card-body">
-                        <textarea class="form-control" id="foundation-mission" rows="4" required>${mission}</textarea>
-                    </div>
-                </div>
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4>
-                    </div>
-                    <div class="card-body">
-                        <textarea class="form-control" id="foundation-vision" rows="4" required>${vision}</textarea>
-                    </div>
-                </div>
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary">Save Changes</button>
-                    <button type="button" class="btn btn-secondary" id="cancel-edit-foundation-btn">Cancel</button>
-                </div>
-            </form>`;
+        const displayView = `<div class="card mb-4"><div class="card-header d-flex justify-content-between"><h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4><button class="btn btn-outline-secondary" id="edit-foundation-btn"><i class="bi bi-pencil"></i> Edit</button></div><div class="card-body"><p class="fs-5">${mission.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p></div></div><div class="card"><div class="card-header"><h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4></div><div class="card-body"><p class="fs-5">${vision.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p></div></div>`;
+        const editView = `<form id="foundation-form"><div class="card mb-4"><div class="card-header"><h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4></div><div class="card-body"><textarea class="form-control" id="foundation-mission" rows="4" required>${mission}</textarea></div></div><div class="card mb-4"><div class="card-header"><h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4></div><div class="card-body"><textarea class="form-control" id="foundation-vision" rows="4" required>${vision}</textarea></div></div><div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Save</button><button type="button" class="btn btn-secondary" id="cancel-edit-foundation-btn">Cancel</button></div></form>`;
         view.innerHTML = isEditing ? editView : displayView;
     }
     
-    // --- TEMPLATES ---
+    // --- TEMPLATES --- (Restored)
     renderNewProjectModal() {
         return `
             <div class="modal fade" id="newProjectModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
@@ -1060,13 +931,10 @@ export class UI {
                         <div id="owner-disclaimer" class="alert alert-info small">
                             As the project owner, you can manage members and their roles.
                         </div>
-
                         <h6>Current Members</h6>
                         <ul class="list-group mb-4" id="project-members-list">
-                            <!-- Member items will be dynamically inserted here -->
                             <li class="list-group-item">Loading...</li>
                         </ul>
-
                         <form id="invite-member-form">
                             <h6>Invite New Member</h6>
                             <div class="input-group">
