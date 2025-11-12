@@ -8,7 +8,8 @@ import {
     deleteDoc,
     query,
     where,
-    documentId
+    documentId,
+    onSnapshot
 } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
 export class FirestoreStore {
@@ -17,15 +18,12 @@ export class FirestoreStore {
             throw new Error("User not authenticated for FirestoreStore.");
         }
         this.userId = userId;
-        // Reference the top-level collections
         this.projectsCollection = collection(db, 'projects');
         this.usersCollection = collection(db, 'users');
         this.appData = { currentProjectId: null, projects: [] };
     }
 
-    // --- READ OPERATIONS ---
     async loadAppData() {
-        // Query projects where the current user is a member
         const q = query(this.projectsCollection, where(`members.${this.userId}`, 'in', ['owner', 'editor', 'viewer']));
         const snapshot = await getDocs(q);
         this.appData.projects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -62,13 +60,11 @@ export class FirestoreStore {
         }
     }
     
-    // --- PRIVATE HELPER ---
     _getProjectDocRef(projectId) {
         if (!projectId) return null;
         return doc(db, 'projects', projectId);
     }
     
-    // --- WRITE OPERATIONS ---
     async createNewProject(initialData) {
         const newProjectData = {
             name: initialData.projectName,
@@ -78,10 +74,8 @@ export class FirestoreStore {
             cycles: [{ id: `cycle-${Date.now()}`, name: "Initial Cycle", startDate: new Date().toISOString().split('T')[0], endDate: "", status: "Active" }],
             teams: initialData.teams.map((teamName, index) => ({ id: `team-${Date.now() + index}`, name: teamName })),
             objectives: [],
-            // Add the creator as the owner in the new members map
-            members: {
-                [this.userId]: 'owner'
-            }
+            members: { [this.userId]: 'owner' },
+            workbenchContent: '' // Initialize workbench field
         };
         const docRef = await addDoc(this.projectsCollection, newProjectData);
         const newProject = { id: docRef.id, ...newProjectData };
@@ -109,7 +103,8 @@ export class FirestoreStore {
             ...projectData, 
             isArchived: false, 
             name: `${projectData.name} (Imported)`,
-            members: { [this.userId]: 'owner' } // Set importer as owner
+            members: { [this.userId]: 'owner' },
+            workbenchContent: projectData.workbenchContent || ''
         };
         delete newProjectData.id; 
 
@@ -128,7 +123,8 @@ export class FirestoreStore {
 
         clonedProjectData.name = `${originalProject.name} (Clone)`;
         clonedProjectData.isArchived = false;
-        clonedProjectData.members = { [this.userId]: 'owner' }; // Cloner becomes owner
+        clonedProjectData.members = { [this.userId]: 'owner' };
+        clonedProjectData.workbenchContent = '';
         
         const newCycleId = `cycle-${Date.now() + 1}`;
         clonedProjectData.cycles = [{ id: newCycleId, name: "Initial Cycle", startDate: new Date().toISOString().split('T')[0], endDate: "", status: "Active" }];
@@ -313,18 +309,14 @@ export class FirestoreStore {
         }
     }
 
-    // --- SHARING/MEMBER METHODS ---
     async getProjectMembersWithData() {
         const project = this.getCurrentProject();
         if (!project || !project.members) return [];
-
         const memberIds = Object.keys(project.members);
         if (memberIds.length === 0) return [];
-
         const q = query(this.usersCollection, where(documentId(), 'in', memberIds));
         const userDocs = await getDocs(q);
         const usersMap = new Map(userDocs.docs.map(doc => [doc.id, doc.data()]));
-
         return memberIds.map(id => ({
             uid: id,
             email: usersMap.get(id)?.email || 'Unknown User',
@@ -335,9 +327,7 @@ export class FirestoreStore {
     async updateMember(uid, role) {
         const project = this.getCurrentProject();
         if (!project || !this.isCurrentUserOwner()) return { success: false, message: "Permission denied." };
-        
         project.members[uid] = role;
-        // Use dot notation for updating a specific field in a map
         await this._updateCurrentProjectInFirestore({ [`members.${uid}`]: role });
         return { success: true };
     }
@@ -346,46 +336,48 @@ export class FirestoreStore {
         const project = this.getCurrentProject();
         if (!project || !this.isCurrentUserOwner()) return { success: false, message: "Permission denied." };
         if (uid === this.userId) return { success: false, message: "Owner cannot remove themselves."};
-        
         delete project.members[uid];
-        // To delete a field, we must use a special key with the field path
         const projectRef = this._getProjectDocRef(project.id);
         if (!projectRef) return { success: false, message: "Project not found."};
-        
-        // Firestore requires a special syntax to delete a map field
         const { [`members.${uid}`]: deleted, ...restMembers } = project.members;
         await updateDoc(projectRef, { members: restMembers });
-        
         return { success: true };
     }
 
     async inviteMember(email, role) {
         const project = this.getCurrentProject();
         if (!project || !this.isCurrentUserOwner()) return { success: false, message: "Permission denied." };
-        
-        // 1. Find user UID by email
         const q = query(this.usersCollection, where("email", "==", email));
         const snapshot = await getDocs(q);
-
-        if (snapshot.empty) {
-            return { success: false, message: `User with email ${email} not found.` };
-        }
-        
+        if (snapshot.empty) return { success: false, message: `User with email ${email} not found.` };
         const inviteeUid = snapshot.docs[0].id;
-        
-        // 2. Check if user is already a member
-        if (project.members[inviteeUid]) {
-            return { success: false, message: "User is already a member of this project." };
-        }
-
-        // 3. Add user to members map
+        if (project.members[inviteeUid]) return { success: false, message: "User is already a member of this project." };
         project.members[inviteeUid] = role;
         await this._updateCurrentProjectInFirestore({ [`members.${inviteeUid}`]: role });
-
         return { success: true, message: `User ${email} invited as ${role}.` };
     }
     
-    // --- UTILITY METHODS ---
+    listenForWorkbenchUpdates(callback) {
+        const project = this.getCurrentProject();
+        if (!project) return null;
+        const projectRef = this._getProjectDocRef(project.id);
+        return onSnapshot(projectRef, (doc) => {
+            const data = doc.data();
+            if (data) {
+                // Update local project state as well
+                project.workbenchContent = data.workbenchContent;
+                callback(data.workbenchContent || '');
+            }
+        });
+    }
+
+    async updateWorkbenchContent(content) {
+        const project = this.getCurrentProject();
+        if (!project) return;
+        project.workbenchContent = content; // Update local state immediately for responsiveness
+        await this._updateCurrentProjectInFirestore({ workbenchContent: content });
+    }
+    
     calculateProgress(objective) {
         if (!objective.keyResults || objective.keyResults.length === 0) return 0;
         const total = objective.keyResults.reduce((sum, kr) => {
