@@ -1,5 +1,6 @@
-import { auth } from './firebase-config.js';
+import { auth, db } from './firebase-config.js';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+import { doc, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
 document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('login-form');
@@ -38,8 +39,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const password = document.getElementById('signup-password').value;
 
             createUserWithEmailAndPassword(auth, email, password)
-                .then((userCredential) => {
-                    // Signed in 
+                .then(async (userCredential) => {
+                    const user = userCredential.user;
+                    
+                    // Create a user profile document in Firestore
+                    await setDoc(doc(db, "users", user.uid), {
+                        email: user.email
+                    });
+
                     showAlert('Account created successfully! Logging you in...');
                     setTimeout(() => {
                         window.location.href = 'index.html';
