@@ -1,14 +1,14 @@
-// js/firestore-store.js
-
-import { auth, db } from './firebase-config.js';
+import { db } from './firebase-config.js';
 import { 
     collection, 
     doc, 
     getDocs, 
     addDoc, 
     updateDoc, 
-    deleteDoc, 
-    writeBatch 
+    deleteDoc,
+    query,
+    where,
+    documentId
 } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
 export class FirestoreStore {
@@ -17,13 +17,17 @@ export class FirestoreStore {
             throw new Error("User not authenticated for FirestoreStore.");
         }
         this.userId = userId;
-        this.projectsCollection = collection(db, 'users', this.userId, 'projects');
+        // Reference the top-level collections
+        this.projectsCollection = collection(db, 'projects');
+        this.usersCollection = collection(db, 'users');
         this.appData = { currentProjectId: null, projects: [] };
     }
 
     // --- READ OPERATIONS ---
     async loadAppData() {
-        const snapshot = await getDocs(this.projectsCollection);
+        // Query projects where the current user is a member
+        const q = query(this.projectsCollection, where(`members.${this.userId}`, 'in', ['owner', 'editor', 'viewer']));
+        const snapshot = await getDocs(q);
         this.appData.projects = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
         const savedProjectId = localStorage.getItem('okrAppCurrentProjectId');
@@ -42,6 +46,12 @@ export class FirestoreStore {
         if (!this.appData.currentProjectId) return null;
         return this.appData.projects.find(p => p.id === this.appData.currentProjectId);
     }
+    
+    isCurrentUserOwner() {
+        const project = this.getCurrentProject();
+        if (!project || !project.members) return false;
+        return project.members[this.userId] === 'owner';
+    }
 
     setCurrentProjectId(projectId) {
         this.appData.currentProjectId = projectId;
@@ -55,7 +65,7 @@ export class FirestoreStore {
     // --- PRIVATE HELPER ---
     _getProjectDocRef(projectId) {
         if (!projectId) return null;
-        return doc(db, 'users', this.userId, 'projects', projectId);
+        return doc(db, 'projects', projectId);
     }
     
     // --- WRITE OPERATIONS ---
@@ -68,6 +78,10 @@ export class FirestoreStore {
             cycles: [{ id: `cycle-${Date.now()}`, name: "Initial Cycle", startDate: new Date().toISOString().split('T')[0], endDate: "", status: "Active" }],
             teams: initialData.teams.map((teamName, index) => ({ id: `team-${Date.now() + index}`, name: teamName })),
             objectives: [],
+            // Add the creator as the owner in the new members map
+            members: {
+                [this.userId]: 'owner'
+            }
         };
         const docRef = await addDoc(this.projectsCollection, newProjectData);
         const newProject = { id: docRef.id, ...newProjectData };
@@ -91,7 +105,12 @@ export class FirestoreStore {
             console.error('Invalid project data for import.');
             return null;
         }
-        const newProjectData = { ...projectData, isArchived: false, name: `${projectData.name} (Imported)`};
+        const newProjectData = { 
+            ...projectData, 
+            isArchived: false, 
+            name: `${projectData.name} (Imported)`,
+            members: { [this.userId]: 'owner' } // Set importer as owner
+        };
         delete newProjectData.id; 
 
         const docRef = await addDoc(this.projectsCollection, newProjectData);
@@ -109,6 +128,7 @@ export class FirestoreStore {
 
         clonedProjectData.name = `${originalProject.name} (Clone)`;
         clonedProjectData.isArchived = false;
+        clonedProjectData.members = { [this.userId]: 'owner' }; // Cloner becomes owner
         
         const newCycleId = `cycle-${Date.now() + 1}`;
         clonedProjectData.cycles = [{ id: newCycleId, name: "Initial Cycle", startDate: new Date().toISOString().split('T')[0], endDate: "", status: "Active" }];
@@ -292,6 +312,78 @@ export class FirestoreStore {
             await this._updateCurrentProjectInFirestore({ objectives: project.objectives });
         }
     }
+
+    // --- SHARING/MEMBER METHODS ---
+    async getProjectMembersWithData() {
+        const project = this.getCurrentProject();
+        if (!project || !project.members) return [];
+
+        const memberIds = Object.keys(project.members);
+        if (memberIds.length === 0) return [];
+
+        const q = query(this.usersCollection, where(documentId(), 'in', memberIds));
+        const userDocs = await getDocs(q);
+        const usersMap = new Map(userDocs.docs.map(doc => [doc.id, doc.data()]));
+
+        return memberIds.map(id => ({
+            uid: id,
+            email: usersMap.get(id)?.email || 'Unknown User',
+            role: project.members[id]
+        })).sort((a, b) => a.email.localeCompare(b.email));
+    }
+    
+    async updateMember(uid, role) {
+        const project = this.getCurrentProject();
+        if (!project || !this.isCurrentUserOwner()) return { success: false, message: "Permission denied." };
+        
+        project.members[uid] = role;
+        // Use dot notation for updating a specific field in a map
+        await this._updateCurrentProjectInFirestore({ [`members.${uid}`]: role });
+        return { success: true };
+    }
+
+    async removeMember(uid) {
+        const project = this.getCurrentProject();
+        if (!project || !this.isCurrentUserOwner()) return { success: false, message: "Permission denied." };
+        if (uid === this.userId) return { success: false, message: "Owner cannot remove themselves."};
+        
+        delete project.members[uid];
+        // To delete a field, we must use a special key with the field path
+        const projectRef = this._getProjectDocRef(project.id);
+        if (!projectRef) return { success: false, message: "Project not found."};
+        
+        // Firestore requires a special syntax to delete a map field
+        const { [`members.${uid}`]: deleted, ...restMembers } = project.members;
+        await updateDoc(projectRef, { members: restMembers });
+        
+        return { success: true };
+    }
+
+    async inviteMember(email, role) {
+        const project = this.getCurrentProject();
+        if (!project || !this.isCurrentUserOwner()) return { success: false, message: "Permission denied." };
+        
+        // 1. Find user UID by email
+        const q = query(this.usersCollection, where("email", "==", email));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            return { success: false, message: `User with email ${email} not found.` };
+        }
+        
+        const inviteeUid = snapshot.docs[0].id;
+        
+        // 2. Check if user is already a member
+        if (project.members[inviteeUid]) {
+            return { success: false, message: "User is already a member of this project." };
+        }
+
+        // 3. Add user to members map
+        project.members[inviteeUid] = role;
+        await this._updateCurrentProjectInFirestore({ [`members.${inviteeUid}`]: role });
+
+        return { success: true, message: `User ${email} invited as ${role}.` };
+    }
     
     // --- UTILITY METHODS ---
     calculateProgress(objective) {
@@ -300,7 +392,7 @@ export class FirestoreStore {
             const start = Number(kr.startValue), target = Number(kr.targetValue), current = Number(kr.currentValue);
             if (target === start) return sum + 100;
             const progress = Math.max(0, Math.min(100, ((current - start) / (target - start)) * 100));
-            kr.progress = progress; // Also update progress on the KR object itself
+            kr.progress = progress;
             return sum + progress;
         }, 0);
         return Math.round(total / objective.keyResults.length);
