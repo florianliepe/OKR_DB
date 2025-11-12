@@ -1,3 +1,6 @@
+import { auth } from './firebase-config.js';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
+
 document.addEventListener('DOMContentLoaded', () => {
     const loginForm = document.getElementById('login-form');
     const signupForm = document.getElementById('signup-form');
@@ -16,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const email = document.getElementById('login-email').value;
             const password = document.getElementById('login-password').value;
 
-            auth.signInWithEmailAndPassword(email, password)
+            signInWithEmailAndPassword(auth, email, password)
                 .then((userCredential) => {
                     // Signed in
                     window.location.href = 'index.html';
@@ -34,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const email = document.getElementById('signup-email').value;
             const password = document.getElementById('signup-password').value;
 
-            auth.createUserWithEmailAndPassword(email, password)
+            createUserWithEmailAndPassword(auth, email, password)
                 .then((userCredential) => {
                     // Signed in 
                     showAlert('Account created successfully! Logging you in...');
