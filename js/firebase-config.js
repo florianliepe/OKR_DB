@@ -5,7 +5,7 @@ import { getFirestore } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyC26f3QvnPD9F0_l_BNBdrGOvwICq86t1g", // Use your valid API key here
+    apiKey: "AIzaSyDiFrGZLK1oCmz8JKkljMs_vVLZkv8Di1I",
     authDomain: "eraokr-4d70a.firebaseapp.com",
     projectId: "eraokr-4d70a",
     storageBucket: "eraokr-4d70a.appspot.com",
