@@ -30,13 +30,13 @@ function run(store, ui) {
     let explorerResponsibleFilter = 'all';
     let dashboardOwnerFilter = 'all';
     let dashboardResponsibleFilter = 'all';
-    let workbenchUnsubscribe = null; // Variable to hold the real-time listener unsub function
+    let workbenchUnsubscribe = null;
 
     function cleanupListeners() {
         currentViewListeners.forEach(({ element, type, handler }) => element.removeEventListener(type, handler));
         currentViewListeners = [];
         if (workbenchUnsubscribe) {
-            workbenchUnsubscribe(); // Detach the listener
+            workbenchUnsubscribe();
             workbenchUnsubscribe = null;
         }
     }
@@ -187,9 +187,17 @@ function run(store, ui) {
         ui.renderMainLayout(project);
 
         const router = () => {
-            cleanupListeners(); // Clean up old listeners before setting up new ones
+            // *** FIX: DO NOT CLEAN UP LISTENERS ON EVERY ROUTE CHANGE ***
+            // cleanupListeners(); // This was the bug. Removing it.
+            
             let currentProject = store.getCurrentProject();
             if (!currentProject) { main(); return; }
+
+            // Clean up specific listeners ONLY when leaving a view that has them.
+            if (workbenchUnsubscribe) {
+                workbenchUnsubscribe();
+                workbenchUnsubscribe = null;
+            }
 
             const hash = window.location.hash || '#dashboard';
             ui.showView(hash.substring(1) + '-view');
@@ -212,16 +220,14 @@ function run(store, ui) {
             const editor = document.getElementById('workbench-editor');
             const status = document.getElementById('workbench-status');
 
-            // Set up real-time listener
             workbenchUnsubscribe = store.listenForWorkbenchUpdates(content => {
                 if (editor.value !== content) {
-                    const cursorPos = editor.selectionStart; // Save cursor position
+                    const cursorPos = editor.selectionStart;
                     editor.value = content;
-                    editor.selectionStart = editor.selectionEnd = cursorPos; // Restore cursor
+                    editor.selectionStart = editor.selectionEnd = cursorPos;
                 }
             });
 
-            // Set up debounced writer
             const debouncedUpdate = debounce(async (content) => {
                 status.textContent = 'Saving...';
                 await store.updateWorkbenchContent(content);
@@ -252,6 +258,7 @@ function run(store, ui) {
             }
         };
 
+        // These are the "global for project view" listeners. They are set up ONCE when a project loads.
         addListener(window, 'hashchange', router);
         addListener(document.getElementById('back-to-projects'), 'click', async () => { 
             window.location.hash = ''; 
@@ -362,39 +369,6 @@ function run(store, ui) {
             }
         });
 
-        addListener(document.getElementById('explorer-view'), 'dragstart', e => { if (e.target.classList.contains('okr-card')) e.target.classList.add('dragging'); });
-        addListener(document.getElementById('explorer-view'), 'dragend', e => { if (e.target.classList.contains('okr-card')) e.target.classList.remove('dragging'); });
-        addListener(document.getElementById('explorer-view'), 'dragover', e => {
-            e.preventDefault();
-            const container = e.target.closest('.objective-list'); if (!container) return;
-            const placeholder = document.createElement('div'); placeholder.classList.add('drag-over-placeholder');
-            const afterElement = getDragAfterElement(container, e.clientY);
-            container.querySelector('.drag-over-placeholder')?.remove();
-            if (afterElement == null) container.appendChild(placeholder);
-            else container.insertBefore(placeholder, afterElement);
-        });
-        addListener(document.getElementById('explorer-view'), 'drop', async e => {
-            e.preventDefault();
-            const container = e.target.closest('.objective-list');
-            container?.querySelector('.drag-over-placeholder')?.remove();
-            const draggedElement = document.querySelector('.dragging');
-            if (!draggedElement || !container) return;
-            let newOrderedIds = [...container.querySelectorAll('.okr-card:not(.dragging)')].map(el => el.id);
-            const afterElement = getDragAfterElement(container, e.clientY);
-            if (afterElement == null) newOrderedIds.push(draggedElement.id);
-            else newOrderedIds.splice(newOrderedIds.indexOf(afterElement.id), 0, draggedElement.id);
-            await store.reorderObjectives(newOrderedIds); router(); ui.showToast('Objectives reordered.');
-        });
-        
-        function getDragAfterElement(container, y) {
-            const draggableElements = [...container.querySelectorAll('.okr-card:not(.dragging)')];
-            return draggableElements.reduce((closest, child) => {
-                const box = child.getBoundingClientRect(); const offset = y - box.top - box.height / 2;
-                if (offset < 0 && offset > closest.offset) return { offset: offset, element: child };
-                else return closest;
-            }, { offset: Number.NEGATIVE_INFINITY }).element;
-        }
-        
         addListener(document, 'submit', async e => {
             e.preventDefault();
             if (e.target.id === 'objective-form') {
@@ -485,9 +459,11 @@ function run(store, ui) {
             }
         });
 
+        // Initial call to the router to render the correct view based on the current URL hash
         router();
         ui.renderNavControls(project);
     }
     
+    // Initial call to start the application logic
     main();
 }
