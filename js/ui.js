@@ -179,6 +179,7 @@ export class UI {
                                         <ul class="dropdown-menu dropdown-menu-end" id="cycle-selector-list"></ul>
                                     </div>
                                     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#objectiveModal" id="add-objective-btn" disabled><i class="bi bi-plus-circle"></i> Add Objective</button>
+                                    <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#shareProjectModal" id="share-project-btn"><i class="bi bi-people-fill"></i> Share</button>
                                 </div>
                             </div>
                         </nav>
@@ -194,7 +195,46 @@ export class UI {
                     </div>
                 </div>
             </div>`;
-        this.modalContainer.innerHTML = `${this.renderObjectiveModal()}${this.renderKeyResultModal()}`;
+        this.modalContainer.innerHTML = `${this.renderObjectiveModal()}${this.renderKeyResultModal()}${this.renderShareProjectModal()}`;
+    }
+
+    populateShareModal(members, isOwner) {
+        const memberList = document.getElementById('project-members-list');
+        const inviteForm = document.getElementById('invite-member-form');
+        const ownerDisclaimer = document.getElementById('owner-disclaimer');
+
+        if (!memberList) return;
+
+        if (!isOwner) {
+            memberList.innerHTML = members.map(member => `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="fw-bold">${member.email}</span><br>
+                        <small class="text-capitalize text-muted">${member.role}</small>
+                    </div>
+                </li>
+            `).join('');
+            if(inviteForm) inviteForm.style.display = 'none';
+            if(ownerDisclaimer) ownerDisclaimer.style.display = 'none';
+        } else {
+             memberList.innerHTML = members.map(member => `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="fw-bold">${member.email}</span><br>
+                        <small class="text-capitalize text-muted">${member.role}</small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <select class="form-select form-select-sm member-role-select" data-uid="${member.uid}" ${member.role === 'owner' ? 'disabled' : ''}>
+                            <option value="editor" ${member.role === 'editor' ? 'selected' : ''}>Editor</option>
+                            <option value="viewer" ${member.role === 'viewer' ? 'selected' : ''}>Viewer</option>
+                        </select>
+                        <button class="btn btn-sm btn-outline-danger remove-member-btn" data-uid="${member.uid}" ${member.role === 'owner' ? 'disabled' : ''}><i class="bi bi-trash"></i></button>
+                    </div>
+                </li>
+            `).join('');
+            if(inviteForm) inviteForm.style.display = 'block';
+            if(ownerDisclaimer) ownerDisclaimer.style.display = 'block';
+        }
     }
 
     showView(viewId) {
@@ -984,5 +1024,41 @@ export class UI {
                     </div>
                 </div>
             </div>`;
+    }
+    renderShareProjectModal() {
+        return `
+        <div class="modal fade" id="shareProjectModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Share Project</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="owner-disclaimer" class="alert alert-info small">
+                            As the project owner, you can manage members and their roles.
+                        </div>
+
+                        <h6>Current Members</h6>
+                        <ul class="list-group mb-4" id="project-members-list">
+                            <!-- Member items will be dynamically inserted here -->
+                            <li class="list-group-item">Loading...</li>
+                        </ul>
+
+                        <form id="invite-member-form">
+                            <h6>Invite New Member</h6>
+                            <div class="input-group">
+                                <input type="email" id="invite-email-input" class="form-control" placeholder="user@example.com" required>
+                                <select id="invite-role-select" class="form-select flex-grow-0 w-auto">
+                                    <option value="editor">Editor</option>
+                                    <option value="viewer">Viewer</option>
+                                </select>
+                                <button type="submit" class="btn btn-primary">Invite</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>`;
     }
 }
