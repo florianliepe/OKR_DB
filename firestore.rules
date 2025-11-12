@@ -1,0 +1,58 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- Helper Functions ---
+    // Function to check if a user is authenticated.
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Function to check if the user is a member of the project.
+    function isMember(projectData) {
+      return request.auth.uid in projectData.members;
+    }
+
+    // Function to check if the user is an editor or owner.
+    function isEditor(projectData) {
+      return projectData.members[request.auth.uid] in ['owner', 'editor'];
+    }
+
+    // Function to check if the user is the owner of the project.
+    function isOwner(projectData) {
+      return projectData.members[request.auth.uid] == 'owner';
+    }
+    
+    // --- User Profiles ---
+    // Users can create their own profile upon signup and read anyone's email,
+    // but cannot update or delete profiles.
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update, delete: if false; // Profiles are immutable
+    }
+
+    // --- Projects ---
+    // Rules for the main projects collection.
+    match /projects/{projectId} {
+    
+      // READ: Allow if the user's UID is in the project's members map.
+      allow read: if isAuthenticated() && isMember(resource.data);
+      
+      // CREATE: Allow if the user is creating a project where they are the sole owner.
+      allow create: if isAuthenticated()
+                    && request.resource.data.members[request.auth.uid] == 'owner'
+                    && request.resource.data.members.size() == 1;
+
+      // DELETE: Allow only if the user is the owner.
+      allow delete: if isAuthenticated() && isOwner(resource.data);
+      
+      // UPDATE: More complex logic. Break it down.
+      allow update: if isAuthenticated() && isMember(resource.data)
+                    // Rule 1: Allow owner to update anything.
+                    && (isOwner(resource.data)
+                    // Rule 2: Allow editors to update anything *except* the members map.
+                    || (isEditor(resource.data) && request.resource.data.members == resource.data.members));
+    }
+  }
+}
