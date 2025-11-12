@@ -1,5 +1,3 @@
-// js/app.js
-
 import { auth } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { FirestoreStore } from './firestore-store.js';
@@ -10,17 +8,14 @@ onAuthStateChanged(auth, user => {
     const isLoginPage = window.location.pathname.endsWith('login.html');
     
     if (user) {
-        // User is logged in
         if (isLoginPage) {
-            window.location.href = 'index.html'; // Redirect from login page
+            window.location.href = 'index.html';
         } else {
-            // This is the main entry point for authenticated users
             initializeApp(user); 
         }
     } else {
-        // User is not logged in
         if (!isLoginPage) {
-            window.location.href = 'login.html'; // Redirect to login page
+            window.location.href = 'login.html';
         }
     }
 });
@@ -30,13 +25,8 @@ async function initializeApp(user) {
     
     try {
         const store = new FirestoreStore(user.uid);
-        // CRITICAL: Load data from Firestore BEFORE initializing the rest of the app
         await store.loadAppData(); 
-
-        // The rest of the application logic is now nested inside this main function
-        // It receives `store` and `ui` as arguments to ensure proper scope.
         run(store, ui);
-
     } catch (error) {
         console.error("Fatal Error: Could not initialize Firestore data.", error);
         ui.showToast("Error loading your data. Please refresh the page.", "danger");
@@ -47,7 +37,6 @@ async function initializeApp(user) {
 function run(store, ui) {
     let currentViewListeners = [];
 
-    // State for view-specific filters
     let explorerResponsibleFilter = 'all';
     let dashboardOwnerFilter = 'all';
     let dashboardResponsibleFilter = 'all';
@@ -66,9 +55,7 @@ function run(store, ui) {
         const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
         [...tooltipTriggerList].forEach(tooltipTriggerEl => {
             const tooltip = bootstrap.Tooltip.getInstance(tooltipTriggerEl);
-            if (tooltip) {
-                tooltip.dispose();
-            }
+            if (tooltip) tooltip.dispose();
         });
         [...tooltipTriggerList].forEach(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl));
     }
@@ -106,11 +93,19 @@ function run(store, ui) {
             if (deleteBtn) {
                 e.stopPropagation();
                 const projectId = deleteBtn.dataset.projectId, projectName = deleteBtn.dataset.projectName;
-                if (confirm(`Are you sure you want to PERMANENTLY DELETE the project "${projectName}"? This action cannot be undone.`)) {
-                    await store.deleteProject(projectId);
-                    ui.showToast(`Project "${projectName}" deleted.`, 'danger');
-                    await main();
+                // Add owner check before deleting
+                store.setCurrentProjectId(projectId);
+                if (store.isCurrentUserOwner()) {
+                    if (confirm(`Are you sure you want to PERMANENTLY DELETE the project "${projectName}"? This action cannot be undone.`)) {
+                        await store.deleteProject(projectId);
+                        ui.showToast(`Project "${projectName}" deleted.`, 'danger');
+                        await main();
+                    }
+                } else {
+                    ui.showToast('Only the project owner can delete this project.', 'danger');
                 }
+                store.setCurrentProjectId(null); // Deselect after check
+                await main(); // Refresh the view
                 return;
             }
              if (archiveBtn) {
@@ -196,30 +191,24 @@ function run(store, ui) {
             const formattedEnd = end.toISOString().split('T')[0];
             
             if (confirm(`Change dates for "${task.name}" to ${formattedStart} - ${formattedEnd}?`)) {
-                // We need to find the full objective object to pass to the store
                 const currentProject = store.getCurrentProject();
                 const objective = currentProject.objectives.find(o => o.id === task.id);
                 if (objective) {
-                    // Create a new object with the updated dates to pass to the store
                     const updatedData = { ...objective, startDate: formattedStart, endDate: formattedEnd };
                     await store.updateObjective(task.id, updatedData);
                     ui.showToast('Objective dates updated.');
-                    // Re-render the view to reflect the change immediately
                     router(); 
                 }
             } else {
-                 // If user cancels, re-render to snap the Gantt bar back to original position
                 router();
             }
         };
 
         const router = () => {
-            let currentProject = store.getCurrentProject(); // Always get the latest state
+            let currentProject = store.getCurrentProject();
             if (!currentProject) { main(); return; }
-
             const hash = window.location.hash || '#dashboard';
             ui.showView(hash.substring(1) + '-view');
-            
             switch(hash) {
                 case '#dashboard': ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter); break;
                 case '#explorer': ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter); break;
@@ -321,7 +310,7 @@ function run(store, ui) {
             if (e.target.id === 'cancel-edit-foundation-btn') ui.renderFoundationView(store.getCurrentProject(), false);
         });
 
-        addListener(document.getElementById('app-container'), 'change', e => {
+        addListener(document.getElementById('app-container'), 'change', async e => {
             let currentProject;
             if (e.target.id === 'report-date-input') {
                 const newDate = e.target.value;
@@ -338,13 +327,42 @@ function run(store, ui) {
                 currentProject = store.getCurrentProject();
                 ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter);
             }
-             if (e.target.id === 'explorer-filter-responsible') {
+            if (e.target.id === 'explorer-filter-responsible') {
                 explorerResponsibleFilter = e.target.value;
                 currentProject = store.getCurrentProject();
                 ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter);
                 initializeTooltips();
             }
+            // Member role change handler
+            if (e.target.classList.contains('member-role-select')) {
+                const uid = e.target.dataset.uid;
+                const newRole = e.target.value;
+                const result = await store.updateMember(uid, newRole);
+                if (result.success) {
+                    ui.showToast('Member role updated.', 'success');
+                } else {
+                    ui.showToast(result.message, 'danger');
+                }
+            }
         });
+        
+        // Listener for remove member button
+        addListener(document.getElementById('modal-container'), 'click', async e => {
+            if (e.target.closest('.remove-member-btn')) {
+                const uid = e.target.closest('.remove-member-btn').dataset.uid;
+                if (confirm('Are you sure you want to remove this member?')) {
+                    const result = await store.removeMember(uid);
+                     if (result.success) {
+                        ui.showToast('Member removed.', 'success');
+                        const members = await store.getProjectMembersWithData();
+                        ui.populateShareModal(members, store.isCurrentUserOwner());
+                    } else {
+                        ui.showToast(result.message, 'danger');
+                    }
+                }
+            }
+        });
+
 
         addListener(document.getElementById('explorer-view'), 'dragstart', e => {
             if (e.target.classList.contains('okr-card')) {
@@ -450,14 +468,36 @@ function run(store, ui) {
                 ui.showToast('Foundation statements updated.');
                 router();
             }
+            // Handle Invite Member form submission
+            if (e.target.id === 'invite-member-form') {
+                const emailInput = document.getElementById('invite-email-input');
+                const roleSelect = document.getElementById('invite-role-select');
+                const email = emailInput.value;
+                const role = roleSelect.value;
+                
+                const result = await store.inviteMember(email, role);
+                ui.showToast(result.message, result.success ? 'success' : 'danger');
+
+                if (result.success) {
+                    emailInput.value = '';
+                    const members = await store.getProjectMembersWithData();
+                    ui.populateShareModal(members, store.isCurrentUserOwner());
+                }
+            }
         });
 
-        addListener(document, 'show.bs.modal', e => {
+        addListener(document, 'show.bs.modal', async e => {
             const modal = e.target, trigger = e.relatedTarget;
-            if (!trigger) return;
+            if (!trigger && modal.id !== 'shareProjectModal') return;
 
-            const currentProject = store.getCurrentProject(); // Always get latest project data
+            const currentProject = store.getCurrentProject();
             if (!currentProject) return;
+
+            if (modal.id === 'shareProjectModal') {
+                const isOwner = store.isCurrentUserOwner();
+                const members = await store.getProjectMembersWithData();
+                ui.populateShareModal(members, isOwner);
+            }
 
             if (modal.id === 'objectiveModal') {
                 const form = document.getElementById('objective-form');
@@ -533,6 +573,5 @@ function run(store, ui) {
         ui.renderNavControls(project);
     }
     
-    // Initial call to start the application logic
     main();
 }
