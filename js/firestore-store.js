@@ -45,10 +45,10 @@ export class FirestoreStore {
         return this.appData.projects.find(p => p.id === this.appData.currentProjectId);
     }
     
-    isCurrentUserOwner() {
+    getCurrentUserRole() {
         const project = this.getCurrentProject();
-        if (!project || !project.members) return false;
-        return project.members[this.userId] === 'owner';
+        if (!project || !project.members || !project.members[this.userId]) return null;
+        return project.members[this.userId];
     }
 
     setCurrentProjectId(projectId) {
@@ -75,7 +75,7 @@ export class FirestoreStore {
             teams: initialData.teams.map((teamName, index) => ({ id: `team-${Date.now() + index}`, name: teamName })),
             objectives: [],
             members: { [this.userId]: 'owner' },
-            workbenchContent: '' // Initialize workbench field
+            workbenchContent: ''
         };
         const docRef = await addDoc(this.projectsCollection, newProjectData);
         const newProject = { id: docRef.id, ...newProjectData };
@@ -326,7 +326,8 @@ export class FirestoreStore {
     
     async updateMember(uid, role) {
         const project = this.getCurrentProject();
-        if (!project || !this.isCurrentUserOwner()) return { success: false, message: "Permission denied." };
+        const userRole = this.getCurrentUserRole();
+        if (!project || userRole !== 'owner') return { success: false, message: "Permission denied." };
         project.members[uid] = role;
         await this._updateCurrentProjectInFirestore({ [`members.${uid}`]: role });
         return { success: true };
@@ -334,7 +335,8 @@ export class FirestoreStore {
 
     async removeMember(uid) {
         const project = this.getCurrentProject();
-        if (!project || !this.isCurrentUserOwner()) return { success: false, message: "Permission denied." };
+        const userRole = this.getCurrentUserRole();
+        if (!project || userRole !== 'owner') return { success: false, message: "Permission denied." };
         if (uid === this.userId) return { success: false, message: "Owner cannot remove themselves."};
         delete project.members[uid];
         const projectRef = this._getProjectDocRef(project.id);
@@ -346,7 +348,8 @@ export class FirestoreStore {
 
     async inviteMember(email, role) {
         const project = this.getCurrentProject();
-        if (!project || !this.isCurrentUserOwner()) return { success: false, message: "Permission denied." };
+        const userRole = this.getCurrentUserRole();
+        if (!project || userRole !== 'owner') return { success: false, message: "Permission denied." };
         const q = query(this.usersCollection, where("email", "==", email));
         const snapshot = await getDocs(q);
         if (snapshot.empty) return { success: false, message: `User with email ${email} not found.` };
@@ -364,9 +367,10 @@ export class FirestoreStore {
         return onSnapshot(projectRef, (doc) => {
             const data = doc.data();
             if (data) {
-                // Update local project state as well
-                project.workbenchContent = data.workbenchContent;
-                callback(data.workbenchContent || '');
+                if (project.workbenchContent !== data.workbenchContent) {
+                    project.workbenchContent = data.workbenchContent;
+                    callback(data.workbenchContent || '');
+                }
             }
         });
     }
@@ -374,7 +378,7 @@ export class FirestoreStore {
     async updateWorkbenchContent(content) {
         const project = this.getCurrentProject();
         if (!project) return;
-        project.workbenchContent = content; // Update local state immediately for responsiveness
+        project.workbenchContent = content;
         await this._updateCurrentProjectInFirestore({ workbenchContent: content });
     }
     
