@@ -1,7 +1,8 @@
-// Import Firebase services from our config module, and classes from their modules
-import { auth, db } from './firebase-config.js';
+// js/app.js
+
+import { auth } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
-import { Store } from './store.js';
+import { FirestoreStore } from './firestore-store.js';
 import { UI } from './ui.js';
 
 // --- Auth Guard ---
@@ -9,24 +10,41 @@ onAuthStateChanged(auth, user => {
     const isLoginPage = window.location.pathname.endsWith('login.html');
     
     if (user) {
+        // User is logged in
         if (isLoginPage) {
-            window.location.href = 'index.html';
-        } else if (window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/OKR_DB/')) {
-            initializeApp(user);
+            window.location.href = 'index.html'; // Redirect from login page
+        } else {
+            // This is the main entry point for authenticated users
+            initializeApp(user); 
         }
     } else {
+        // User is not logged in
         if (!isLoginPage) {
-            window.location.href = 'login.html';
+            window.location.href = 'login.html'; // Redirect to login page
         }
     }
 });
 
 async function initializeApp(user) {
-    // These are now standard classes because they are imported.
-    const store = new Store(); 
     const ui = new UI();
     
-    // The rest of the application logic remains the same...
+    try {
+        const store = new FirestoreStore(user.uid);
+        // CRITICAL: Load data from Firestore BEFORE initializing the rest of the app
+        await store.loadAppData(); 
+
+        // The rest of the application logic is now nested inside this main function
+        // It receives `store` and `ui` as arguments to ensure proper scope.
+        run(store, ui);
+
+    } catch (error) {
+        console.error("Fatal Error: Could not initialize Firestore data.", error);
+        ui.showToast("Error loading your data. Please refresh the page.", "danger");
+    }
+}
+
+
+function run(store, ui) {
     let currentViewListeners = [];
 
     // State for view-specific filters
@@ -43,17 +61,6 @@ async function initializeApp(user) {
         element.addEventListener(type, handler);
         currentViewListeners.push({ element, type, handler });
     }
-
-    function initializeTooltips() {
-        // ... unchanged ...
-    }
-
-    async function main() {
-        // ... unchanged ...
-    }
-    
-    // ALL other functions (loadProjectSwitcher, loadProject, router, event listeners, etc.) are unchanged.
-    // I am providing the full code below to be absolutely certain.
     
     function initializeTooltips() {
         const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
@@ -189,36 +196,47 @@ async function initializeApp(user) {
             const formattedEnd = end.toISOString().split('T')[0];
             
             if (confirm(`Change dates for "${task.name}" to ${formattedStart} - ${formattedEnd}?`)) {
-                const objective = project.objectives.find(o => o.id === task.id);
+                // We need to find the full objective object to pass to the store
+                const currentProject = store.getCurrentProject();
+                const objective = currentProject.objectives.find(o => o.id === task.id);
                 if (objective) {
-                    await store.updateObjective(task.id, { ...objective, startDate: formattedStart, endDate: formattedEnd });
+                    // Create a new object with the updated dates to pass to the store
+                    const updatedData = { ...objective, startDate: formattedStart, endDate: formattedEnd };
+                    await store.updateObjective(task.id, updatedData);
                     ui.showToast('Objective dates updated.');
+                    // Re-render the view to reflect the change immediately
+                    router(); 
                 }
             } else {
+                 // If user cancels, re-render to snap the Gantt bar back to original position
                 router();
             }
         };
 
         const router = () => {
-            project = store.getCurrentProject();
-            if (!project) { main(); return; }
+            let currentProject = store.getCurrentProject(); // Always get the latest state
+            if (!currentProject) { main(); return; }
+
             const hash = window.location.hash || '#dashboard';
             ui.showView(hash.substring(1) + '-view');
+            
             switch(hash) {
-                case '#dashboard': ui.renderDashboardView(project, dashboardOwnerFilter, dashboardResponsibleFilter); break;
-                case '#explorer': ui.renderExplorerView(project, document.getElementById('search-input').value, explorerResponsibleFilter); break;
-                case '#gantt': ui.renderGanttView(project, handleGanttDateChange); break;
-                case '#risk-board': ui.renderRiskBoardView(project); break;
-                case '#reporting': ui.renderReportingView(project); break;
-                case '#cycles': ui.renderCyclesView(project); break;
-                case '#foundation': ui.renderFoundationView(project); break;
+                case '#dashboard': ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter); break;
+                case '#explorer': ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter); break;
+                case '#gantt': ui.renderGanttView(currentProject, handleGanttDateChange); break;
+                case '#risk-board': ui.renderRiskBoardView(currentProject); break;
+                case '#reporting': ui.renderReportingView(currentProject); break;
+                case '#cycles': ui.renderCyclesView(currentProject); break;
+                case '#foundation': ui.renderFoundationView(currentProject); break;
             }
             initializeTooltips();
         };
 
         addListener(window, 'hashchange', router);
-        addListener(document.getElementById('back-to-projects'), async () => { 
-            window.location.hash = ''; store.setCurrentProjectId(null); await main(); 
+        addListener(document.getElementById('back-to-projects'), 'click', async () => { 
+            window.location.hash = ''; 
+            store.setCurrentProjectId(null); 
+            await main(); 
         });
 
         addListener(document.getElementById('logout-btn'), 'click', () => {
@@ -232,6 +250,7 @@ async function initializeApp(user) {
 
         addListener(document.getElementById('export-project-btn'), 'click', () => {
             const currentProject = store.getCurrentProject();
+            if (!currentProject) return;
             const projectName = currentProject.name.replace(/\s/g, '_').toLowerCase();
             const fileName = `${projectName}_okr_backup.json`;
             const dataStr = JSON.stringify(currentProject, null, 2);
@@ -248,7 +267,9 @@ async function initializeApp(user) {
         });
         
         addListener(document.getElementById('search-input'), 'input', e => {
-            ui.renderExplorerView(project, e.target.value, explorerResponsibleFilter);
+            const currentProject = store.getCurrentProject();
+            if (!currentProject) return;
+            ui.renderExplorerView(currentProject, e.target.value, explorerResponsibleFilter);
             initializeTooltips();
         });
         addListener(document.getElementById('cycle-selector-list'), 'click', async e => {
@@ -290,36 +311,37 @@ async function initializeApp(user) {
             if (e.target.closest('.set-active-cycle-btn')) {
                 const cycleId = e.target.closest('.set-active-cycle-btn').dataset.cycleId;
                 await store.setActiveCycle(cycleId);
-                project = store.getCurrentProject();
-                const activeCycle = project.cycles.find(c => c.id === cycleId);
+                const currentProject = store.getCurrentProject();
+                const activeCycle = currentProject.cycles.find(c => c.id === cycleId);
                 ui.showToast(`Active cycle set to "${activeCycle.name}".`, 'info');
-                ui.renderCyclesView(project);
-                ui.renderNavControls(project);
+                ui.renderCyclesView(currentProject);
+                ui.renderNavControls(currentProject);
             }
-            if (e.target.id === 'edit-foundation-btn') ui.renderFoundationView(project, true);
-            if (e.target.id === 'cancel-edit-foundation-btn') ui.renderFoundationView(project, false);
+            if (e.target.id === 'edit-foundation-btn') ui.renderFoundationView(store.getCurrentProject(), true);
+            if (e.target.id === 'cancel-edit-foundation-btn') ui.renderFoundationView(store.getCurrentProject(), false);
         });
 
         addListener(document.getElementById('app-container'), 'change', e => {
+            let currentProject;
             if (e.target.id === 'report-date-input') {
                 const newDate = e.target.value;
-                project = store.getCurrentProject();
-                ui.renderReportingView(project, newDate);
+                currentProject = store.getCurrentProject();
+                ui.renderReportingView(currentProject, newDate);
             }
             if (e.target.id === 'dashboard-filter-owner') {
                 dashboardOwnerFilter = e.target.value;
-                project = store.getCurrentProject();
-                ui.renderDashboardView(project, dashboardOwnerFilter, dashboardResponsibleFilter);
+                currentProject = store.getCurrentProject();
+                ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter);
             }
             if (e.target.id === 'dashboard-filter-responsible') {
                 dashboardResponsibleFilter = e.target.value;
-                project = store.getCurrentProject();
-                ui.renderDashboardView(project, dashboardOwnerFilter, dashboardResponsibleFilter);
+                currentProject = store.getCurrentProject();
+                ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter);
             }
              if (e.target.id === 'explorer-filter-responsible') {
                 explorerResponsibleFilter = e.target.value;
-                project = store.getCurrentProject();
-                ui.renderExplorerView(project, document.getElementById('search-input').value, explorerResponsibleFilter);
+                currentProject = store.getCurrentProject();
+                ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter);
                 initializeTooltips();
             }
         });
@@ -433,24 +455,30 @@ async function initializeApp(user) {
         addListener(document, 'show.bs.modal', e => {
             const modal = e.target, trigger = e.relatedTarget;
             if (!trigger) return;
+
+            const currentProject = store.getCurrentProject(); // Always get latest project data
+            if (!currentProject) return;
+
             if (modal.id === 'objectiveModal') {
-                project = store.getCurrentProject();
                 const form = document.getElementById('objective-form');
                 form.reset();
                 document.getElementById('objective-id').value = '';
                 document.getElementById('objective-notes').value = '';
                 document.getElementById('objective-responsible').value = '';
+                
                 const ownerSelect = document.getElementById('objective-owner');
-                const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
+                const owners = [{ id: 'company', name: currentProject.companyName }, ...currentProject.teams];
                 ownerSelect.innerHTML = owners.map(o => `<option value="${o.id}">${o.name}</option>`).join('');
+                
                 const objId = trigger.dataset.objectiveId;
-                const activeCycle = project.cycles.find(c => c.status === 'Active');
-                const possibleDependencies = project.objectives.filter(o => o.cycleId === activeCycle?.id && o.id !== objId);
+                const activeCycle = currentProject.cycles.find(c => c.status === 'Active');
+                const possibleDependencies = currentProject.objectives.filter(o => o.cycleId === activeCycle?.id && o.id !== objId);
                 const dependsOnSelect = document.getElementById('objective-depends-on');
                 dependsOnSelect.innerHTML = possibleDependencies.map(o => `<option value="${o.id}">${o.title}</option>`).join('');
+                
                 if (objId) {
                     document.getElementById('objective-modal-title').textContent = 'Edit Objective';
-                    const obj = project.objectives.find(o => o.id === objId);
+                    const obj = currentProject.objectives.find(o => o.id === objId);
                     if (obj) {
                         document.getElementById('objective-id').value = obj.id;
                         document.getElementById('objective-title').value = obj.title;
@@ -465,20 +493,23 @@ async function initializeApp(user) {
                             });
                         }
                     }
-                } else { document.getElementById('objective-modal-title').textContent = 'Add Objective'; }
+                } else { 
+                    document.getElementById('objective-modal-title').textContent = 'Add Objective'; 
+                }
             }
             if (modal.id === 'keyResultModal') {
-                project = store.getCurrentProject();
                 const form = document.getElementById('kr-form');
                 form.reset();
                 document.getElementById('kr-id').value = '';
                 document.getElementById('kr-start-value').value = 0;
                 document.getElementById('kr-confidence').value = 'On Track';
                 document.getElementById('kr-notes').value = '';
+                
                 const objId = trigger.dataset.objectiveId;
                 document.getElementById('kr-objective-id').value = objId;
+                
                 const krId = trigger.dataset.krId;
-                const objective = project.objectives.find(o => o.id === objId);
+                const objective = currentProject.objectives.find(o => o.id === objId);
                 if (krId && objective) {
                     document.getElementById('kr-modal-title').textContent = 'Edit Key Result';
                     const kr = objective.keyResults.find(k => k.id === krId);
@@ -491,7 +522,10 @@ async function initializeApp(user) {
                         document.getElementById('kr-confidence').value = kr.confidence || 'On Track';
                         document.getElementById('kr-notes').value = kr.notes || '';
                     }
-                } else { document.getElementById('kr-modal-title').textContent = 'Add Key Result'; document.getElementById('kr-current-value').value = 0; }
+                } else { 
+                    document.getElementById('kr-modal-title').textContent = 'Add Key Result'; 
+                    document.getElementById('kr-current-value').value = 0; 
+                }
             }
         });
 
@@ -499,5 +533,6 @@ async function initializeApp(user) {
         ui.renderNavControls(project);
     }
     
+    // Initial call to start the application logic
     main();
 }
