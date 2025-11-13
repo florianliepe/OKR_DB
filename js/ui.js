@@ -286,20 +286,39 @@ export class UI {
         }
     }
 
-    renderWorkbenchView(content = '', userRole) {
+    renderWorkbenchView(items = [], userRole) {
         const view = document.getElementById('workbench-view');
         if (!view) return;
         const canEdit = userRole === 'owner' || userRole === 'editor';
-        view.innerHTML = `
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <span>A real-time collaborative space for drafting ideas. ${canEdit ? 'All changes are saved automatically.' : ''}</span>
-                    <span id="workbench-status" class="text-muted small">${canEdit ? 'Saved' : 'Read-only'}</span>
-                </div>
-                <div class="card-body p-0">
-                    <textarea id="workbench-editor" class="form-control h-100 border-0" ${canEdit ? '' : 'readonly'}>${content}</textarea>
+    
+        const itemsHtml = items.map(item => `
+            <div class="card wb-item-card ${item.type === 'kr' ? 'wb-item-kr' : ''}" id="${item.id}" draggable="${canEdit}">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <i class="bi ${item.type === 'objective' ? 'bi-bullseye' : 'bi-check2-circle'} text-muted"></i>
+                    <span class="wb-item-text">${item.text}</span>
+                    <textarea class="form-control d-none" rows="2">${item.text}</textarea>
+                    ${canEdit ? `
+                    <div class="wb-item-actions d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary wb-edit-btn" title="Edit"><i class="bi bi-pencil"></i></button>
+                        <button class="btn btn-sm btn-outline-danger wb-delete-btn" title="Delete"><i class="bi bi-trash"></i></button>
+                        <button class="btn btn-sm btn-success d-none wb-save-btn" title="Save"><i class="bi bi-check-lg"></i></button>
+                        <button class="btn btn-sm btn-secondary d-none wb-cancel-btn" title="Cancel"><i class="bi bi-x-lg"></i></button>
+                    </div>` : ''}
                 </div>
             </div>
+        `).join('');
+    
+        view.innerHTML = `
+            <div id="workbench-controls" class="mb-3">
+                <h5>Ideation Workbench</h5>
+                <p class="text-muted">A collaborative space to draft and organize potential OKRs before committing them to a cycle.</p>
+                ${canEdit ? `
+                <div class="d-flex gap-2">
+                    <button id="add-wb-objective" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Add Draft Objective</button>
+                    <button id="add-wb-kr" class="btn btn-outline-info"><i class="bi bi-plus-circle"></i> Add Draft KR</button>
+                </div>` : ''}
+            </div>
+            <div id="workbench-items-container" class="d-flex flex-column gap-2">${itemsHtml}</div>
         `;
     }
 
@@ -819,14 +838,14 @@ export class UI {
         const vision = project.foundation.vision || '';
     
         const teamsHtml = project.teams.map(team => `
-            <li class="list-group-item d-flex justify-content-between align-items-center">
+            <li class="list-group-item d-flex justify-content-between align-items-center" data-team-id="${team.id}">
                 <span class="team-name">${team.name}</span>
+                <input type="text" class="form-control form-control-sm d-none edit-team-name-input" value="${team.name}">
                 <div class="team-actions">
-                    <input type="text" class="form-control form-control-sm d-none edit-team-name-input" value="${team.name}">
-                    <button class="btn btn-sm btn-outline-secondary edit-team-btn" data-team-id="${team.id}"><i class="bi bi-pencil"></i></button>
-                    <button class="btn btn-sm btn-outline-danger delete-team-btn" data-team-id="${team.id}"><i class="bi bi-trash"></i></button>
-                    <button class="btn btn-sm btn-success d-none save-team-btn" data-team-id="${team.id}"><i class="bi bi-check-lg"></i></button>
-                    <button class="btn btn-sm btn-secondary d-none cancel-edit-team-btn" data-team-id="${team.id}"><i class="bi bi-x-lg"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary edit-team-btn"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger delete-team-btn"><i class="bi bi-trash"></i></button>
+                    <button class="btn btn-sm btn-success d-none save-team-btn"><i class="bi bi-check-lg"></i></button>
+                    <button class="btn btn-sm btn-secondary d-none cancel-edit-team-btn"><i class="bi bi-x-lg"></i></button>
                 </div>
             </li>
         `).join('');
