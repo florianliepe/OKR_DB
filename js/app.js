@@ -190,6 +190,7 @@ function run(store, ui, userId) {
             switch(hash) {
                 case '#dashboard': ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter); break;
                 case '#explorer': ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter, currentRole); break;
+                case '#cascade': ui.renderCascadeView(currentProject); break;
                 case '#workbench': setupWorkbench(currentProject, currentRole); break;
                 case '#gantt': ui.renderGanttView(currentProject, canEditGantt() ? handleGanttDateChange : () => {}); break;
                 case '#risk-board': ui.renderRiskBoardView(currentProject); break;
@@ -209,7 +210,8 @@ function run(store, ui, userId) {
             ui.renderWorkbenchView(project.workbenchItems, userRole);
         
             workbenchUnsubscribe = store.listenForWorkbenchUpdates(items => {
-                ui.renderWorkbenchView(items, userRole);
+                const currentRole = store.getCurrentUserRole();
+                ui.renderWorkbenchView(items, currentRole);
             });
         };
         
@@ -306,7 +308,6 @@ function run(store, ui, userId) {
                 ui.renderCyclesView(currentProject, currentRole); ui.renderNavControls(currentProject);
             }
             
-            // --- Settings View Team Management Click Handlers ---
             const editBtn = e.target.closest('.edit-team-btn');
             if (editBtn) {
                 const listItem = editBtn.closest('li');
@@ -351,7 +352,6 @@ function run(store, ui, userId) {
                 }
             }
             
-            // --- Workbench V2 Click Handlers ---
             if (e.target.id === 'add-wb-objective') await store.addWorkbenchItem('objective');
             if (e.target.id === 'add-wb-kr') await store.addWorkbenchItem('kr');
 
@@ -374,13 +374,11 @@ function run(store, ui, userId) {
                 wbCard.querySelector('textarea').classList.add('d-none');
                 wbCard.querySelector('.wb-save-btn').classList.add('d-none');
                 wbCard.querySelector('.wb-cancel-btn').classList.add('d-none');
-                // revert text
                 wbCard.querySelector('textarea').value = wbCard.querySelector('.wb-item-text').textContent;
             }
             if (e.target.closest('.wb-save-btn')) {
                 const newText = wbCard.querySelector('textarea').value;
                 await store.updateWorkbenchItemText(wbCard.id, newText);
-                // The real-time listener will handle the UI update
             }
         });
 
@@ -462,7 +460,6 @@ function run(store, ui, userId) {
                 ui.showToast('Objectives reordered.');
             } else if (wbContainer) {
                 await store.reorderWorkbenchItems(newOrderedIds);
-                // No toast needed, real-time will update
             }
             router();
         });
