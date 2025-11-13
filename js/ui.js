@@ -855,7 +855,6 @@ export class UI {
     
         view.innerHTML = `
             <div class="row g-4">
-                <!-- Project Details Card -->
                 <div class="col-lg-6">
                     <div class="card h-100">
                         <div class="card-header"><h4><i class="bi bi-info-circle-fill me-2"></i>Project Details</h4></div>
@@ -871,7 +870,6 @@ export class UI {
                     </div>
                 </div>
     
-                <!-- Foundation Card -->
                 <div class="col-lg-6">
                     <div class="card h-100">
                         <div class="card-header"><h4><i class="bi bi-flag-fill me-2"></i>North Star</h4></div>
@@ -891,7 +889,6 @@ export class UI {
                     </div>
                 </div>
     
-                <!-- Team Management Card -->
                 <div class="col-12">
                     <div class="card">
                         <div class="card-header"><h4><i class="bi bi-people-fill me-2"></i>Team Management</h4></div>
@@ -907,6 +904,128 @@ export class UI {
             </div>
         `;
     }    
+
+    renderCascadeView(project) {
+        const view = document.getElementById('cascade-view');
+        if (!view) return;
+        view.innerHTML = ''; // Clear previous render
+    
+        const activeCycle = project.cycles.find(c => c.status === 'Active');
+        if (!activeCycle) {
+            view.innerHTML = '<div class="alert alert-warning">No active cycle found.</div>';
+            return;
+        }
+    
+        const objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
+    
+        // 1. Data Transformation
+        const nodes = [];
+        const links = [];
+        const teamNodes = {};
+    
+        // Top-level nodes
+        const missionNode = { id: 'mission', type: 'foundation', text: 'Mission', fullText: project.foundation.mission, level: 0 };
+        const visionNode = { id: 'vision', type: 'foundation', text: 'Vision', fullText: project.foundation.vision, level: 0 };
+        nodes.push(missionNode, visionNode);
+    
+        // Company objectives
+        const companyObjectives = objectivesInCycle.filter(o => o.ownerId === 'company');
+        companyObjectives.forEach(obj => {
+            nodes.push({ id: obj.id, type: 'company-obj', text: obj.title, level: 1 });
+            links.push({ source: 'mission', target: obj.id, type: 'hierarchy' });
+            links.push({ source: 'vision', target: obj.id, type: 'hierarchy' });
+        });
+    
+        // Team nodes and objectives
+        project.teams.forEach(team => {
+            const teamNode = { id: team.id, type: 'team', text: team.name, level: 1 };
+            teamNodes[team.id] = teamNode;
+            nodes.push(teamNode);
+            
+            const teamObjectives = objectivesInCycle.filter(o => o.ownerId === team.id);
+            if (teamObjectives.length > 0) {
+                links.push({ source: 'mission', target: team.id, type: 'hierarchy' });
+                 links.push({ source: 'vision', target: team.id, type: 'hierarchy' });
+            }
+            
+            teamObjectives.forEach(obj => {
+                nodes.push({ id: obj.id, type: 'team-obj', text: obj.title, level: 2 });
+                links.push({ source: team.id, target: obj.id, type: 'hierarchy' });
+            });
+        });
+    
+        // Dependency links
+        objectivesInCycle.forEach(obj => {
+            if (obj.dependsOn) {
+                obj.dependsOn.forEach(depId => {
+                    links.push({ source: depId, target: obj.id, type: 'dependency' });
+                });
+            }
+        });
+    
+        // 2. D3 Rendering
+        const width = view.clientWidth;
+        const height = view.clientHeight;
+        const svg = d3.select(view).append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", [-width / 2, -height / 2, width, height]);
+    
+        const tooltip = d3.select(view).append("div")
+            .attr("class", "cascade-tooltip");
+    
+        const simulation = d3.forceSimulation(nodes)
+            .force("link", d3.forceLink(links).id(d => d.id).distance(100))
+            .force("charge", d3.forceManyBody().strength(-300))
+            .force("center", d3.forceCenter(0, 0))
+            .force("y", d3.forceY(d => d.level * 200 - height / 3).strength(0.5));
+    
+        const link = svg.append("g")
+            .selectAll("line")
+            .data(links)
+            .join("line")
+            .attr("class", d => `cascade-link ${d.type}`);
+    
+        const node = svg.append("g")
+            .selectAll("g")
+            .data(nodes)
+            .join("g")
+            .attr("class", "cascade-node")
+            .call(d3.drag()
+                .on("start", (event, d) => { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
+                .on("drag", (event, d) => { d.fx = event.x; d.fy = event.y; })
+                .on("end", (event, d) => { if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }));
+    
+        const color = d3.scaleOrdinal(d3.schemeCategory10);
+        node.append("circle")
+            .attr("r", d => d.type === 'foundation' || d.type === 'team' ? 15 : 10)
+            .attr("fill", d => color(d.type));
+    
+        node.append("text")
+            .text(d => d.text.length > 20 ? d.text.substring(0, 18) + '...' : d.text)
+            .attr("x", 18)
+            .attr("y", 4)
+            .style("fill", "#fff");
+    
+        node.on("mouseover", (event, d) => {
+            tooltip.transition().duration(200).style("opacity", .9);
+            tooltip.html(d.fullText || d.text)
+                .style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY - 28) + "px");
+        }).on("mouseout", () => {
+            tooltip.transition().duration(500).style("opacity", 0);
+        });
+    
+        simulation.on("tick", () => {
+            link
+                .attr("x1", d => d.source.x)
+                .attr("y1", d => d.source.y)
+                .attr("x2", d => d.target.x)
+                .attr("y2", d => d.target.y);
+            node
+                .attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+    }
 
     renderNewProjectModal() { return `<div class="modal fade" id="newProjectModal" data-bs-backdrop="static" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="new-project-form"><div class="modal-header"><h5 class="modal-title">New Project</h5></div><div class="modal-body"><h6>Details</h6><div class="mb-3"><label for="project-name" class="form-label">Name</label><input type="text" class="form-control" id="project-name" required></div><div class="mb-3"><label for="project-mission" class="form-label">Mission</label><textarea class="form-control" id="project-mission" rows="2" required></textarea></div><div class="mb-3"><label for="project-vision" class="form-label">Vision</label><textarea class="form-control" id="project-vision" rows="2" required></textarea></div><hr><h6>Teams</h6><p class="text-muted small">One team per line.</p><div class="mb-3"><textarea class="form-control" id="project-teams" rows="4"></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Create</button></div></form></div></div></div>`; }
     renderObjectiveModal() { return `<div class="modal fade" id="objectiveModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="objective-form"><div class="modal-header"><h5 class="modal-title" id="objective-modal-title">Add Objective</h5></div><div class="modal-body"><input type="hidden" id="objective-id"><div class="mb-3"><label for="objective-title" class="form-label">Title</label><input type="text" class="form-control" id="objective-title" required></div><div class="row mb-3"><div class="col-md-6"><label for="objective-owner" class="form-label">Owner</label><select class="form-select" id="objective-owner" required></select></div><div class="col-md-6"><label for="objective-responsible" class="form-label">Responsible</label><input type="text" class="form-control" id="objective-responsible"></div></div><div class="row mb-3"><div class="col-md-6"><label for="objective-start-date" class="form-label">Start Date</label><input type="date" class="form-control" id="objective-start-date"></div><div class="col-md-6"><label for="objective-end-date" class="form-label">End Date</label><input type="date" class="form-control" id="objective-end-date"></div></div><div class="mb-3"><label for="objective-notes" class="form-label">Notes</label><textarea class="form-control" id="objective-notes" rows="5"></textarea></div><div class="mb-3"><label for="objective-depends-on" class="form-label">Depends On</label><select class="form-select" id="objective-depends-on" multiple style="height: 150px;"></select></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div></div>`; }
