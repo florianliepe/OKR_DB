@@ -45,15 +45,6 @@ function run(store, ui, userId) {
         element.addEventListener(type, handler);
         currentViewListeners.push({ element, type, handler });
     }
-
-    function debounce(func, delay) {
-        let timeout;
-        return function(...args) {
-            const context = this;
-            clearTimeout(timeout);
-            timeout = setTimeout(() => func.apply(context, args), delay);
-        };
-    }
     
     function initializeTooltips() {
         const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
@@ -215,29 +206,10 @@ function run(store, ui, userId) {
         }
 
         const setupWorkbench = (project, userRole) => {
-            ui.renderWorkbenchView(project.workbenchContent, userRole);
-            const editor = document.getElementById('workbench-editor');
-            const status = document.getElementById('workbench-status');
-
-            if (userRole === 'viewer') return;
-
-            workbenchUnsubscribe = store.listenForWorkbenchUpdates(content => {
-                if (editor.value !== content) {
-                    const cursorPos = editor.selectionStart;
-                    editor.value = content;
-                    editor.selectionStart = editor.selectionEnd = cursorPos;
-                }
-            });
-
-            const debouncedUpdate = debounce(async (content) => {
-                status.textContent = 'Saving...';
-                await store.updateWorkbenchContent(content);
-                status.textContent = 'Saved';
-            }, 500);
-
-            addListener(editor, 'input', () => {
-                status.textContent = 'Typing...';
-                debouncedUpdate(editor.value);
+            ui.renderWorkbenchView(project.workbenchItems, userRole);
+        
+            workbenchUnsubscribe = store.listenForWorkbenchUpdates(items => {
+                ui.renderWorkbenchView(items, userRole);
             });
         };
         
@@ -333,6 +305,7 @@ function run(store, ui, userId) {
                 const currentRole = store.getCurrentUserRole();
                 ui.renderCyclesView(currentProject, currentRole); ui.renderNavControls(currentProject);
             }
+            
             // --- Settings View Team Management Click Handlers ---
             const editBtn = e.target.closest('.edit-team-btn');
             if (editBtn) {
@@ -356,7 +329,7 @@ function run(store, ui, userId) {
             }
             const saveBtn = e.target.closest('.save-team-btn');
             if (saveBtn) {
-                const teamId = saveBtn.dataset.teamId;
+                const teamId = saveBtn.closest('li').dataset.teamId;
                 const newName = saveBtn.closest('li').querySelector('.edit-team-name-input').value;
                 if (newName) {
                     await store.updateTeam(teamId, newName);
@@ -366,7 +339,7 @@ function run(store, ui, userId) {
             }
             const deleteTeamBtn = e.target.closest('.delete-team-btn');
             if(deleteTeamBtn) {
-                const teamId = deleteTeamBtn.dataset.teamId;
+                const teamId = deleteTeamBtn.closest('li').dataset.teamId;
                 if (confirm('Are you sure you want to delete this team?')) {
                     const result = await store.deleteTeam(teamId);
                     if (result.success) {
@@ -376,6 +349,38 @@ function run(store, ui, userId) {
                         ui.showToast(result.message, 'danger');
                     }
                 }
+            }
+            
+            // --- Workbench V2 Click Handlers ---
+            if (e.target.id === 'add-wb-objective') await store.addWorkbenchItem('objective');
+            if (e.target.id === 'add-wb-kr') await store.addWorkbenchItem('kr');
+
+            const wbCard = e.target.closest('.wb-item-card');
+            if (e.target.closest('.wb-delete-btn')) {
+                if (confirm('Delete this item?')) await store.deleteWorkbenchItem(wbCard.id);
+            }
+            if (e.target.closest('.wb-edit-btn')) {
+                wbCard.querySelector('.wb-item-text').classList.add('d-none');
+                wbCard.querySelector('.wb-edit-btn').classList.add('d-none');
+                wbCard.querySelector('.wb-delete-btn').classList.add('d-none');
+                wbCard.querySelector('textarea').classList.remove('d-none');
+                wbCard.querySelector('.wb-save-btn').classList.remove('d-none');
+                wbCard.querySelector('.wb-cancel-btn').classList.remove('d-none');
+            }
+             if (e.target.closest('.wb-cancel-btn')) {
+                wbCard.querySelector('.wb-item-text').classList.remove('d-none');
+                wbCard.querySelector('.wb-edit-btn').classList.remove('d-none');
+                wbCard.querySelector('.wb-delete-btn').classList.remove('d-none');
+                wbCard.querySelector('textarea').classList.add('d-none');
+                wbCard.querySelector('.wb-save-btn').classList.add('d-none');
+                wbCard.querySelector('.wb-cancel-btn').classList.add('d-none');
+                // revert text
+                wbCard.querySelector('textarea').value = wbCard.querySelector('.wb-item-text').textContent;
+            }
+            if (e.target.closest('.wb-save-btn')) {
+                const newText = wbCard.querySelector('textarea').value;
+                await store.updateWorkbenchItemText(wbCard.id, newText);
+                // The real-time listener will handle the UI update
             }
         });
 
@@ -417,14 +422,15 @@ function run(store, ui, userId) {
             }
         });
         
-        addListener(document, 'dragstart', e => { if (e.target.classList.contains('okr-card')) e.target.classList.add('dragging'); });
-        addListener(document, 'dragend', e => { if (e.target.classList.contains('okr-card')) e.target.classList.remove('dragging'); });
+        addListener(document, 'dragstart', e => { if (e.target.classList.contains('okr-card') || e.target.classList.contains('wb-item-card')) e.target.classList.add('dragging'); });
+        addListener(document, 'dragend', e => { if (e.target.classList.contains('okr-card') || e.target.classList.contains('wb-item-card')) e.target.classList.remove('dragging'); });
         
         addListener(document, 'dragover', e => {
             const userRole = store.getCurrentUserRole();
             if (userRole === 'viewer') return;
+            const container = e.target.closest('.objective-list') || e.target.closest('#workbench-items-container');
+            if (!container) return;
             e.preventDefault();
-            const container = e.target.closest('.objective-list'); if (!container) return;
             const placeholder = document.createElement('div'); placeholder.classList.add('drag-over-placeholder');
             const afterElement = getDragAfterElement(container, e.clientY);
             container.querySelector('.drag-over-placeholder')?.remove();
@@ -436,19 +442,34 @@ function run(store, ui, userId) {
             const userRole = store.getCurrentUserRole();
             if (userRole === 'viewer') return;
             e.preventDefault();
-            const container = e.target.closest('.objective-list');
-            container?.querySelector('.drag-over-placeholder')?.remove();
+            const okrContainer = e.target.closest('.objective-list');
+            const wbContainer = e.target.closest('#workbench-items-container');
+            const container = okrContainer || wbContainer;
+            if (!container) return;
+
+            container.querySelector('.drag-over-placeholder')?.remove();
             const draggedElement = document.querySelector('.dragging');
-            if (!draggedElement || !container) return;
-            let newOrderedIds = [...container.querySelectorAll('.okr-card:not(.dragging)')].map(el => el.id);
+            if (!draggedElement) return;
+
+            const cardSelector = container.id === 'workbench-items-container' ? '.wb-item-card' : '.okr-card';
+            let newOrderedIds = [...container.querySelectorAll(`${cardSelector}:not(.dragging)`)].map(el => el.id);
             const afterElement = getDragAfterElement(container, e.clientY);
             if (afterElement == null) newOrderedIds.push(draggedElement.id);
             else newOrderedIds.splice(newOrderedIds.indexOf(afterElement.id), 0, draggedElement.id);
-            await store.reorderObjectives(newOrderedIds); router(); ui.showToast('Objectives reordered.');
+            
+            if(okrContainer) {
+                await store.reorderObjectives(newOrderedIds); 
+                ui.showToast('Objectives reordered.');
+            } else if (wbContainer) {
+                await store.reorderWorkbenchItems(newOrderedIds);
+                // No toast needed, real-time will update
+            }
+            router();
         });
         
         function getDragAfterElement(container, y) {
-            const draggableElements = [...container.querySelectorAll('.okr-card:not(.dragging)')];
+            const cardSelector = container.id === 'workbench-items-container' ? '.wb-item-card' : '.okr-card';
+            const draggableElements = [...container.querySelectorAll(`${cardSelector}:not(.dragging)`)];
             return draggableElements.reduce((closest, child) => {
                 const box = child.getBoundingClientRect(); const offset = y - box.top - box.height / 2;
                 if (offset < 0 && offset > closest.offset) return { offset: offset, element: child };
