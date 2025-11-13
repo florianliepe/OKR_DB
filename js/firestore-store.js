@@ -75,7 +75,7 @@ export class FirestoreStore {
             teams: initialData.teams.map((teamName, index) => ({ id: `team-${Date.now() + index}`, name: teamName })),
             objectives: [],
             members: { [this.userId]: 'owner' },
-            workbenchContent: ''
+            workbenchItems: [] // Changed from workbenchContent
         };
         const docRef = await addDoc(this.projectsCollection, newProjectData);
         const newProject = { id: docRef.id, ...newProjectData };
@@ -104,9 +104,10 @@ export class FirestoreStore {
             isArchived: false, 
             name: `${projectData.name} (Imported)`,
             members: { [this.userId]: 'owner' },
-            workbenchContent: projectData.workbenchContent || ''
+            workbenchItems: projectData.workbenchItems || []
         };
         delete newProjectData.id; 
+        delete newProjectData.workbenchContent; // remove legacy field
 
         const docRef = await addDoc(this.projectsCollection, newProjectData);
         const newProject = { id: docRef.id, ...newProjectData };
@@ -124,7 +125,8 @@ export class FirestoreStore {
         clonedProjectData.name = `${originalProject.name} (Clone)`;
         clonedProjectData.isArchived = false;
         clonedProjectData.members = { [this.userId]: 'owner' };
-        clonedProjectData.workbenchContent = '';
+        clonedProjectData.workbenchItems = []; // Initialize as empty array
+        delete clonedProjectData.workbenchContent; // remove legacy field
         
         const newCycleId = `cycle-${Date.now() + 1}`;
         clonedProjectData.cycles = [{ id: newCycleId, name: "Initial Cycle", startDate: new Date().toISOString().split('T')[0], endDate: "", status: "Active" }];
@@ -367,22 +369,51 @@ export class FirestoreStore {
         return onSnapshot(projectRef, (doc) => {
             const data = doc.data();
             if (data) {
-                if (project.workbenchContent !== data.workbenchContent) {
-                    project.workbenchContent = data.workbenchContent;
-                    callback(data.workbenchContent || '');
-                }
+                // Ensure local state is in sync.
+                project.workbenchItems = data.workbenchItems || [];
+                callback(project.workbenchItems);
             }
         });
     }
 
-    async updateWorkbenchContent(content) {
+    async addWorkbenchItem(type) {
         const project = this.getCurrentProject();
         if (!project) return;
-        project.workbenchContent = content;
-        await this._updateCurrentProjectInFirestore({ workbenchContent: content });
+        const newItem = {
+            id: `wb-item-${Date.now()}`,
+            text: `New Draft ${type === 'objective' ? 'Objective' : 'Key Result'}`,
+            type: type
+        };
+        if (!project.workbenchItems) project.workbenchItems = [];
+        project.workbenchItems.push(newItem);
+        await this._updateCurrentProjectInFirestore({ workbenchItems: project.workbenchItems });
+    }
+
+    async updateWorkbenchItemText(itemId, text) {
+        const project = this.getCurrentProject();
+        if (!project || !project.workbenchItems) return;
+        const item = project.workbenchItems.find(i => i.id === itemId);
+        if (item) {
+            item.text = text;
+            await this._updateCurrentProjectInFirestore({ workbenchItems: project.workbenchItems });
+        }
+    }
+
+    async deleteWorkbenchItem(itemId) {
+        const project = this.getCurrentProject();
+        if (!project || !project.workbenchItems) return;
+        project.workbenchItems = project.workbenchItems.filter(i => i.id !== itemId);
+        await this._updateCurrentProjectInFirestore({ workbenchItems: project.workbenchItems });
+    }
+
+    async reorderWorkbenchItems(orderedIds) {
+        const project = this.getCurrentProject();
+        if (!project || !project.workbenchItems) return;
+        const itemMap = new Map(project.workbenchItems.map(item => [item.id, item]));
+        project.workbenchItems = orderedIds.map(id => itemMap.get(id));
+        await this._updateCurrentProjectInFirestore({ workbenchItems: project.workbenchItems });
     }
     
-    // --- NEW SETTINGS METHODS ---
     async updateProjectDetails(details) {
         const project = this.getCurrentProject();
         if (!project) return;
@@ -411,7 +442,6 @@ export class FirestoreStore {
     async deleteTeam(teamId) {
         const project = this.getCurrentProject();
         if (!project) return;
-        // Check if team owns any objectives
         const isTeamOwner = project.objectives.some(obj => obj.ownerId === teamId);
         if (isTeamOwner) {
             return { success: false, message: "Cannot delete team. It is the owner of one or more objectives." };
