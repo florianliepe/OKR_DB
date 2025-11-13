@@ -45,6 +45,15 @@ function run(store, ui, userId) {
         element.addEventListener(type, handler);
         currentViewListeners.push({ element, type, handler });
     }
+
+    function debounce(func, delay) {
+        let timeout;
+        return function(...args) {
+            const context = this;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), delay);
+        };
+    }
     
     function initializeTooltips() {
         const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
