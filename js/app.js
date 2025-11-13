@@ -18,14 +18,14 @@ async function initializeApp(user) {
     try {
         const store = new FirestoreStore(user.uid);
         await store.loadAppData(); 
-        run(store, ui, user.uid); // Pass uid into run
+        run(store, ui, user.uid);
     } catch (error) {
         console.error("Fatal Error: Could not initialize Firestore data.", error);
         ui.showToast("Error loading your data. Please refresh the page.", "danger");
     }
 }
 
-function run(store, ui, userId) { // Receive userId
+function run(store, ui, userId) {
     let currentViewListeners = [];
     let explorerResponsibleFilter = 'all';
     let dashboardOwnerFilter = 'all';
@@ -91,7 +91,6 @@ function run(store, ui, userId) { // Receive userId
                 return;
             }
 
-            // This logic is now safe because the button won't even render if the user is not the owner.
             if (deleteBtn) {
                 e.stopPropagation();
                 const projectId = deleteBtn.dataset.projectId;
@@ -195,27 +194,32 @@ function run(store, ui, userId) { // Receive userId
             const hash = window.location.hash || '#dashboard';
             ui.showView(hash.substring(1) + '-view');
             
-            const currentRole = store.getCurrentUserRole(); // Get role on each route change
+            const currentRole = store.getCurrentUserRole();
 
             switch(hash) {
                 case '#dashboard': ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter); break;
                 case '#explorer': ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter, currentRole); break;
                 case '#workbench': setupWorkbench(currentProject, currentRole); break;
-                case '#gantt': ui.renderGanttView(currentProject); break;
+                case '#gantt': ui.renderGanttView(currentProject, canEditGantt() ? handleGanttDateChange : () => {}); break;
                 case '#risk-board': ui.renderRiskBoardView(currentProject); break;
                 case '#reporting': ui.renderReportingView(currentProject); break;
                 case '#cycles': ui.renderCyclesView(currentProject, currentRole); break;
-                case '#foundation': ui.renderFoundationView(currentProject, false, currentRole); break;
+                case '#settings': ui.renderSettingsView(currentProject); break;
             }
             initializeTooltips();
         };
         
+        const canEditGantt = () => {
+            const role = store.getCurrentUserRole();
+            return role === 'owner' || role === 'editor';
+        }
+
         const setupWorkbench = (project, userRole) => {
             ui.renderWorkbenchView(project.workbenchContent, userRole);
             const editor = document.getElementById('workbench-editor');
             const status = document.getElementById('workbench-status');
 
-            if (userRole === 'viewer') return; // Viewers can't edit
+            if (userRole === 'viewer') return;
 
             workbenchUnsubscribe = store.listenForWorkbenchUpdates(content => {
                 if (editor.value !== content) {
@@ -329,13 +333,49 @@ function run(store, ui, userId) { // Receive userId
                 const currentRole = store.getCurrentUserRole();
                 ui.renderCyclesView(currentProject, currentRole); ui.renderNavControls(currentProject);
             }
-            if (e.target.id === 'edit-foundation-btn') {
-                const currentRole = store.getCurrentUserRole();
-                ui.renderFoundationView(store.getCurrentProject(), true, currentRole);
+            // --- Settings View Team Management Click Handlers ---
+            const editBtn = e.target.closest('.edit-team-btn');
+            if (editBtn) {
+                const listItem = editBtn.closest('li');
+                listItem.querySelector('.team-name').classList.add('d-none');
+                listItem.querySelector('.edit-team-btn').classList.add('d-none');
+                listItem.querySelector('.delete-team-btn').classList.add('d-none');
+                listItem.querySelector('.edit-team-name-input').classList.remove('d-none');
+                listItem.querySelector('.save-team-btn').classList.remove('d-none');
+                listItem.querySelector('.cancel-edit-team-btn').classList.remove('d-none');
             }
-            if (e.target.id === 'cancel-edit-foundation-btn') {
-                const currentRole = store.getCurrentUserRole();
-                ui.renderFoundationView(store.getCurrentProject(), false, currentRole);
+            const cancelBtn = e.target.closest('.cancel-edit-team-btn');
+            if (cancelBtn) {
+                const listItem = cancelBtn.closest('li');
+                listItem.querySelector('.team-name').classList.remove('d-none');
+                listItem.querySelector('.edit-team-btn').classList.remove('d-none');
+                listItem.querySelector('.delete-team-btn').classList.remove('d-none');
+                listItem.querySelector('.edit-team-name-input').classList.add('d-none');
+                listItem.querySelector('.save-team-btn').classList.add('d-none');
+                listItem.querySelector('.cancel-edit-team-btn').classList.add('d-none');
+            }
+            const saveBtn = e.target.closest('.save-team-btn');
+            if (saveBtn) {
+                const teamId = saveBtn.dataset.teamId;
+                const newName = saveBtn.closest('li').querySelector('.edit-team-name-input').value;
+                if (newName) {
+                    await store.updateTeam(teamId, newName);
+                    ui.showToast('Team renamed.');
+                    router();
+                }
+            }
+            const deleteTeamBtn = e.target.closest('.delete-team-btn');
+            if(deleteTeamBtn) {
+                const teamId = deleteTeamBtn.dataset.teamId;
+                if (confirm('Are you sure you want to delete this team?')) {
+                    const result = await store.deleteTeam(teamId);
+                    if (result.success) {
+                        ui.showToast('Team deleted.');
+                        router();
+                    } else {
+                        ui.showToast(result.message, 'danger');
+                    }
+                }
             }
         });
 
@@ -382,7 +422,7 @@ function run(store, ui, userId) { // Receive userId
         
         addListener(document, 'dragover', e => {
             const userRole = store.getCurrentUserRole();
-            if (userRole === 'viewer') return; // Don't allow drag/drop for viewers
+            if (userRole === 'viewer') return;
             e.preventDefault();
             const container = e.target.closest('.objective-list'); if (!container) return;
             const placeholder = document.createElement('div'); placeholder.classList.add('drag-over-placeholder');
@@ -446,7 +486,21 @@ function run(store, ui, userId) { // Receive userId
             }
             if (e.target.id === 'foundation-form') {
                 const data = { mission: document.getElementById('foundation-mission').value, vision: document.getElementById('foundation-vision').value };
-                await store.updateFoundation(data); ui.showToast('Foundation statements updated.'); router();
+                await store.updateFoundation(data); ui.showToast('Foundation statements updated.');
+            }
+            if (e.target.id === 'project-details-form') {
+                const newName = document.getElementById('settings-project-name').value;
+                await store.updateProjectDetails({ name: newName, companyName: newName });
+                document.getElementById('sidebar-project-name').textContent = newName;
+                ui.showToast('Project name updated.');
+            }
+            if (e.target.id === 'add-team-form') {
+                const newTeamName = document.getElementById('add-team-name').value;
+                if(newTeamName) {
+                    await store.addTeam(newTeamName);
+                    ui.showToast(`Team "${newTeamName}" added.`);
+                    router();
+                }
             }
             if (e.target.id === 'invite-member-form') {
                 const emailInput = document.getElementById('invite-email-input'); const roleSelect = document.getElementById('invite-role-select');
