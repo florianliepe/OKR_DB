@@ -135,7 +135,7 @@ body {
 
 /* Toast Container Style */
 #toast-container {
-    z-index: 1100; /* Ensure it's above modals (Bootstrap modal z-index is 1055) */
+    z-index: 1100;
 }
 
 /* Search Highlight Style */
@@ -148,51 +148,27 @@ mark {
 
 /* Gantt Chart Styles */
 #gantt-view {
-    overflow-x: auto; /* Allow horizontal scrolling for the chart */
+    overflow-x: auto;
 }
 
-.gantt .bar-label {
-    fill: white !important;
-}
-
-.gantt .bar-progress {
-    fill: #0d6efd !important;
-}
-
-.gantt .grid-header, .gantt .grid-row, .gantt .grid-background {
-    fill: #212529 !important;
-}
-
-.gantt .grid-row:nth-child(even) {
-    fill: #2c3034 !important;
-}
-
-.gantt .tick, .gantt .grid-header .grid-row, .gantt .grid-row .grid-cell {
-    stroke: #495057 !important;
-}
-
-.gantt .today-highlight {
-    fill: #0d6efd !important;
-    opacity: 0.2;
-}
-
-.gantt .upper-text, .gantt .lower-text {
-    fill: #adb5bd !important;
-}
-
-.gantt .bar-wrapper.active .bar {
-    stroke: white;
-}
+.gantt .bar-label { fill: white !important; }
+.gantt .bar-progress { fill: #0d6efd !important; }
+.gantt .grid-header, .gantt .grid-row, .gantt .grid-background { fill: #212529 !important; }
+.gantt .grid-row:nth-child(even) { fill: #2c3034 !important; }
+.gantt .tick, .gantt .grid-header .grid-row, .gantt .grid-row .grid-cell { stroke: #495057 !important; }
+.gantt .today-highlight { fill: #0d6efd !important; opacity: 0.2; }
+.gantt .upper-text, .gantt .lower-text { fill: #adb5bd !important; }
+.gantt .bar-wrapper.active .bar { stroke: white; }
 
 /* Drag and Drop Styles */
-.okr-card.dragging {
+.okr-card.dragging, .wb-item-card.dragging {
     opacity: 0.5;
 }
 
 .drag-over-placeholder {
     height: 2px;
     background-color: #0d6efd;
-    margin: -1px 0; /* Adjust to sit between items */
+    margin: -1px 0;
     transition: all 0.2s ease;
 }
 
@@ -201,17 +177,58 @@ mark {
     border-left-width: 4px;
 }
 
-.risk-card.border-warning {
-    border-left-color: var(--bs-warning) !important;
-}
-
-.risk-card.border-danger {
-    border-left-color: var(--bs-danger) !important;
-}
+.risk-card.border-warning { border-left-color: var(--bs-warning) !important; }
+.risk-card.border-danger { border-left-color: var(--bs-danger) !important; }
 
 /* Responsible Person Style */
 .responsible-person {
     font-size: 0.8rem;
     font-weight: bold;
     color: var(--bs-secondary-color);
+}
+
+/* Settings View Styles */
+#team-list .team-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+/* Workbench V2 Styles */
+#workbench-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+#workbench-controls {
+    flex-shrink: 0;
+}
+#workbench-items-container {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+.wb-item-card {
+    background-color: #343a40;
+    border: 1px solid #495057;
+    cursor: grab;
+}
+.wb-item-card.wb-item-kr {
+    margin-left: 2rem;
+    border-left: 3px solid var(--bs-info);
+}
+.wb-item-card .wb-item-text {
+    flex-grow: 1;
+    cursor: text;
+}
+.wb-item-card textarea {
+    background-color: #212529;
+    color: var(--bs-body-color);
+    border: 1px solid #0d6efd;
+    resize: none;
+}
+.wb-item-card .wb-item-actions {
+    visibility: hidden;
+}
+.wb-item-card:hover .wb-item-actions {
+    visibility: visible;
 }
