@@ -382,6 +382,45 @@ export class FirestoreStore {
         await this._updateCurrentProjectInFirestore({ workbenchContent: content });
     }
     
+    // --- NEW SETTINGS METHODS ---
+    async updateProjectDetails(details) {
+        const project = this.getCurrentProject();
+        if (!project) return;
+        Object.assign(project, details);
+        await this._updateCurrentProjectInFirestore(details);
+    }
+    
+    async addTeam(teamName) {
+        const project = this.getCurrentProject();
+        if (!project) return;
+        const newTeam = { id: `team-${Date.now()}`, name: teamName };
+        project.teams.push(newTeam);
+        await this._updateCurrentProjectInFirestore({ teams: project.teams });
+    }
+
+    async updateTeam(teamId, newName) {
+        const project = this.getCurrentProject();
+        if (!project) return;
+        const team = project.teams.find(t => t.id === teamId);
+        if (team) {
+            team.name = newName;
+            await this._updateCurrentProjectInFirestore({ teams: project.teams });
+        }
+    }
+
+    async deleteTeam(teamId) {
+        const project = this.getCurrentProject();
+        if (!project) return;
+        // Check if team owns any objectives
+        const isTeamOwner = project.objectives.some(obj => obj.ownerId === teamId);
+        if (isTeamOwner) {
+            return { success: false, message: "Cannot delete team. It is the owner of one or more objectives." };
+        }
+        project.teams = project.teams.filter(t => t.id !== teamId);
+        await this._updateCurrentProjectInFirestore({ teams: project.teams });
+        return { success: true };
+    }
+
     calculateProgress(objective) {
         if (!objective.keyResults || objective.keyResults.length === 0) return 0;
         const total = objective.keyResults.reduce((sum, kr) => {
