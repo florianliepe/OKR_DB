@@ -165,6 +165,7 @@ export class UI {
                             <ul class="nav nav-pills flex-column mb-auto">
                                 <li class="nav-item"><a href="#dashboard" class="nav-link text-white" data-view="dashboard-view"><i class="bi bi-bar-chart-line-fill me-2"></i> Dashboard</a></li>
                                 <li class="nav-item"><a href="#explorer" class="nav-link text-white" data-view="explorer-view"><i class="bi bi-columns-gap me-2"></i> OKR Explorer</a></li>
+                                <li class="nav-item"><a href="#cascade" class="nav-link text-white" data-view="cascade-view"><i class="bi bi-diagram-3-fill me-2"></i> Cascade</a></li>
                                 <li class="nav-item"><a href="#workbench" class="nav-link text-white" data-view="workbench-view"><i class="bi bi-lightbulb-fill me-2"></i> Workbench</a></li>
                                 <li class="nav-item"><a href="#gantt" class="nav-link text-white" data-view="gantt-view"><i class="bi bi-bar-chart-steps me-2"></i> Gantt</a></li>
                                 <li class="nav-item"><a href="#risk-board" class="nav-link text-white" data-view="risk-board-view"><i class="bi bi-exclamation-triangle-fill me-2"></i> Risk Board</a></li>
@@ -197,6 +198,7 @@ export class UI {
                         <div class="p-4 content-scroll-area">
                             <div id="dashboard-view" class="view-container" style="display:none;"></div>
                             <div id="explorer-view" class="view-container" style="display:none;"></div>
+                            <div id="cascade-view" class="view-container" style="display:none;"></div>
                             <div id="workbench-view" class="view-container" style="display:none;"></div>
                             <div id="gantt-view" class="view-container" style="display:none;"></div>
                             <div id="risk-board-view" class="view-container" style="display:none;"></div>
@@ -275,6 +277,7 @@ export class UI {
             const titles = {
                 'dashboard-view': 'Dashboard',
                 'explorer-view': 'OKR Explorer',
+                'cascade-view': 'OKR Cascade',
                 'workbench-view': 'Workbench',
                 'gantt-view': 'Gantt Timeline',
                 'risk-board-view': 'Risk Board',
@@ -718,7 +721,7 @@ export class UI {
         });
         const filterHtml = `<div class="d-flex justify-content-end mb-3"><div class="col-md-4"><label for="explorer-filter-responsible" class="form-label">Filter by Responsible</label><select id="explorer-filter-responsible" class="form-select"><option value="all">All</option>${responsibleFilterOptionsHtml}</select></div></div>`;
         if (!html && (searchTerm || filterResponsible !== 'all')) view.innerHTML = filterHtml + `<div class="text-center p-5"><h3>No results.</h3></div>`; 
-        else if (!html) view.innerHTML = filterHtml + `<div class="text-center p-5 bg-body-secondary rounded"><h3>No Objectives.</h3><p>Click "Add Objective" to begin.</p></div>`; 
+        else if (!html) view.innerHTML = filterHtml + `<div class="text-center p-5 bg-body-secondary rounded"><h3>No Objectives.</h3>${(userRole !== 'viewer') ? '<p>Click "Add Objective" to begin.</p>' : ''}</div>`; 
         else view.innerHTML = filterHtml + html; 
     }
 
