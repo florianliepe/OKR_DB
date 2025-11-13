@@ -1,5 +1,3 @@
-// js/ui.js
-
 export class UI {
     constructor() {
         this.appContainer = document.getElementById('app-container');
@@ -155,13 +153,14 @@ export class UI {
 
     renderMainLayout(project, userRole) {
         const canEdit = userRole === 'owner' || userRole === 'editor';
+        const isOwner = userRole === 'owner';
         this.appContainer.innerHTML = `
             <div class="container-fluid g-0">
                 <div class="row g-0 vh-100">
                     <div id="sidebar-col" class="col-auto bg-dark p-3">
                         <nav id="sidebar" class="d-flex flex-column h-100">
                             <div class="d-flex align-items-center mb-3 text-white text-decoration-none">
-                                <i class="bi bi-bullseye me-2 fs-4"></i><span class="fs-4 text-nowrap">${project.name}</span>
+                                <i class="bi bi-bullseye me-2 fs-4"></i><span class="fs-4 text-nowrap" id="sidebar-project-name">${project.name}</span>
                             </div><hr>
                             <ul class="nav nav-pills flex-column mb-auto">
                                 <li class="nav-item"><a href="#dashboard" class="nav-link text-white" data-view="dashboard-view"><i class="bi bi-bar-chart-line-fill me-2"></i> Dashboard</a></li>
@@ -171,7 +170,7 @@ export class UI {
                                 <li class="nav-item"><a href="#risk-board" class="nav-link text-white" data-view="risk-board-view"><i class="bi bi-exclamation-triangle-fill me-2"></i> Risk Board</a></li>
                                 <li class="nav-item"><a href="#reporting" class="nav-link text-white" data-view="reporting-view"><i class="bi bi-clock-history me-2"></i> Reporting</a></li>
                                 <li class="nav-item"><a href="#cycles" class="nav-link text-white" data-view="cycles-view"><i class="bi bi-arrow-repeat me-2"></i> Cycle Management</a></li>
-                                <li class="nav-item"><a href="#foundation" class="nav-link text-white" data-view="foundation-view"><i class="bi bi-flag-fill me-2"></i> North Star</a></li>
+                                ${isOwner ? `<li class="nav-item"><a href="#settings" class="nav-link text-white" data-view="settings-view"><i class="bi bi-gear-fill me-2"></i> Settings</a></li>` : ''}
                             </ul><hr>
                             <div class="d-flex flex-column gap-2">
                                 <button class="btn btn-sm btn-outline-secondary" id="export-project-btn"><i class="bi bi-download me-2"></i> Export Project</button>
@@ -203,7 +202,7 @@ export class UI {
                             <div id="risk-board-view" class="view-container" style="display:none;"></div>
                             <div id="reporting-view" class="view-container" style="display:none;"></div>
                             <div id="cycles-view" class="view-container" style="display:none;"></div>
-                            <div id="foundation-view" class="view-container" style="display:none;"></div>
+                            <div id="settings-view" class="view-container" style="display:none;"></div>
                         </div>
                     </div>
                 </div>
@@ -281,7 +280,7 @@ export class UI {
                 'risk-board-view': 'Risk Board',
                 'reporting-view': 'Reporting',
                 'cycles-view': 'Cycle Management',
-                'foundation-view': 'North Star (Mission & Vision)'
+                'settings-view': 'Project Settings'
             };
             viewTitle.textContent = titles[viewId] || '';
         }
@@ -812,20 +811,81 @@ export class UI {
             </li>`;
     }
 
-    renderFoundationView(project, isEditing = false, userRole) {
-        const canEdit = userRole === 'owner' || userRole === 'editor';
-        const view = document.getElementById('foundation-view');
+    renderSettingsView(project) {
+        const view = document.getElementById('settings-view');
         if (!view) return;
+    
         const mission = project.foundation.mission || '';
         const vision = project.foundation.vision || '';
-        
-        const editButton = canEdit ? `<button class="btn btn-outline-secondary" id="edit-foundation-btn"><i class="bi bi-pencil"></i> Edit</button>` : '';
-
-        const displayView = `<div class="card mb-4"><div class="card-header d-flex justify-content-between align-items-center"><h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4>${editButton}</div><div class="card-body"><p class="fs-5">${mission.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p></div></div><div class="card"><div class="card-header"><h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4></div><div class="card-body"><p class="fs-5">${vision.replace(/\n/g, '<br>') || '<em>Not defined.</em>'}</p></div></div>`;
-        const editView = `<form id="foundation-form"><div class="card mb-4"><div class="card-header"><h4><i class="bi bi-gem me-2 text-primary"></i>Mission</h4></div><div class="card-body"><textarea class="form-control" id="foundation-mission" rows="4" required>${mission}</textarea></div></div><div class="card mb-4"><div class="card-header"><h4><i class="bi bi-binoculars-fill me-2 text-primary"></i>Vision</h4></div><div class="card-body"><textarea class="form-control" id="foundation-vision" rows="4" required>${vision}</textarea></div></div><div class="d-flex gap-2"><button type="submit" class="btn btn-primary">Save</button><button type="button" class="btn btn-secondary" id="cancel-edit-foundation-btn">Cancel</button></div></form>`;
-        view.innerHTML = isEditing && canEdit ? editView : displayView;
-    }
     
+        const teamsHtml = project.teams.map(team => `
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span class="team-name">${team.name}</span>
+                <div class="team-actions">
+                    <input type="text" class="form-control form-control-sm d-none edit-team-name-input" value="${team.name}">
+                    <button class="btn btn-sm btn-outline-secondary edit-team-btn" data-team-id="${team.id}"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger delete-team-btn" data-team-id="${team.id}"><i class="bi bi-trash"></i></button>
+                    <button class="btn btn-sm btn-success d-none save-team-btn" data-team-id="${team.id}"><i class="bi bi-check-lg"></i></button>
+                    <button class="btn btn-sm btn-secondary d-none cancel-edit-team-btn" data-team-id="${team.id}"><i class="bi bi-x-lg"></i></button>
+                </div>
+            </li>
+        `).join('');
+    
+        view.innerHTML = `
+            <div class="row g-4">
+                <!-- Project Details Card -->
+                <div class="col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-header"><h4><i class="bi bi-info-circle-fill me-2"></i>Project Details</h4></div>
+                        <div class="card-body">
+                            <form id="project-details-form">
+                                <div class="mb-3">
+                                    <label for="settings-project-name" class="form-label">Project Name</label>
+                                    <input type="text" class="form-control" id="settings-project-name" value="${project.name}" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Project Name</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+    
+                <!-- Foundation Card -->
+                <div class="col-lg-6">
+                    <div class="card h-100">
+                        <div class="card-header"><h4><i class="bi bi-flag-fill me-2"></i>North Star</h4></div>
+                        <div class="card-body">
+                            <form id="foundation-form">
+                                <div class="mb-3">
+                                    <label for="foundation-mission" class="form-label">Mission Statement</label>
+                                    <textarea class="form-control" id="foundation-mission" rows="3" required>${mission}</textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="foundation-vision" class="form-label">Vision Statement</label>
+                                    <textarea class="form-control" id="foundation-vision" rows="3" required>${vision}</textarea>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Foundation</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+    
+                <!-- Team Management Card -->
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header"><h4><i class="bi bi-people-fill me-2"></i>Team Management</h4></div>
+                        <div class="card-body">
+                            <ul class="list-group mb-3" id="team-list">${teamsHtml}</ul>
+                            <form id="add-team-form" class="d-flex gap-2">
+                                <input type="text" id="add-team-name" class="form-control" placeholder="New team name" required>
+                                <button type="submit" class="btn btn-primary">Add Team</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }    
+
     renderNewProjectModal() { return `<div class="modal fade" id="newProjectModal" data-bs-backdrop="static" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="new-project-form"><div class="modal-header"><h5 class="modal-title">New Project</h5></div><div class="modal-body"><h6>Details</h6><div class="mb-3"><label for="project-name" class="form-label">Name</label><input type="text" class="form-control" id="project-name" required></div><div class="mb-3"><label for="project-mission" class="form-label">Mission</label><textarea class="form-control" id="project-mission" rows="2" required></textarea></div><div class="mb-3"><label for="project-vision" class="form-label">Vision</label><textarea class="form-control" id="project-vision" rows="2" required></textarea></div><hr><h6>Teams</h6><p class="text-muted small">One team per line.</p><div class="mb-3"><textarea class="form-control" id="project-teams" rows="4"></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Create</button></div></form></div></div></div>`; }
     renderObjectiveModal() { return `<div class="modal fade" id="objectiveModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="objective-form"><div class="modal-header"><h5 class="modal-title" id="objective-modal-title">Add Objective</h5></div><div class="modal-body"><input type="hidden" id="objective-id"><div class="mb-3"><label for="objective-title" class="form-label">Title</label><input type="text" class="form-control" id="objective-title" required></div><div class="row mb-3"><div class="col-md-6"><label for="objective-owner" class="form-label">Owner</label><select class="form-select" id="objective-owner" required></select></div><div class="col-md-6"><label for="objective-responsible" class="form-label">Responsible</label><input type="text" class="form-control" id="objective-responsible"></div></div><div class="row mb-3"><div class="col-md-6"><label for="objective-start-date" class="form-label">Start Date</label><input type="date" class="form-control" id="objective-start-date"></div><div class="col-md-6"><label for="objective-end-date" class="form-label">End Date</label><input type="date" class="form-control" id="objective-end-date"></div></div><div class="mb-3"><label for="objective-notes" class="form-label">Notes</label><textarea class="form-control" id="objective-notes" rows="5"></textarea></div><div class="mb-3"><label for="objective-depends-on" class="form-label">Depends On</label><select class="form-select" id="objective-depends-on" multiple style="height: 150px;"></select></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div></div>`; }
     renderKeyResultModal() { return `<div class="modal fade" id="keyResultModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="kr-form"><div class="modal-header"><h5 class="modal-title" id="kr-modal-title">Add Key Result</h5></div><div class="modal-body"><input type="hidden" id="kr-objective-id"><input type="hidden" id="kr-id"><div class="mb-3"><label for="kr-title" class="form-label">Title</label><input type="text" class="form-control" id="kr-title" required></div><div class="row mb-3"><div class="col-md-3"><label for="kr-start-value" class="form-label">Start</label><input type="number" class="form-control" id="kr-start-value" value="0" required></div><div class="col-md-3"><label for="kr-current-value" class="form-label">Current</label><input type="number" class="form-control" id="kr-current-value" value="0" required></div><div class="col-md-3"><label for="kr-target-value" class="form-label">Target</label><input type="number" class="form-control" id="kr-target-value" required></div><div class="col-md-3"><label for="kr-confidence" class="form-label">Confidence</label><select class="form-select" id="kr-confidence" required><option>On Track</option><option>At Risk</option><option>Off Track</option></select></div></div><div class="mb-3"><label for="kr-notes" class="form-label">Notes</label><textarea class="form-control" id="kr-notes" rows="3"></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div></div>`; }
