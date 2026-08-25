@@ -184,7 +184,7 @@ export class UI {
         
         return `
             <div class="col-12 col-md-6 col-lg-4">
-                <div class="card project-card h-100" data-project-id="${project.id}" tabindex="0" role="button">
+                <div class="card project-card h-100" data-project-id="${project.id}">
                     <div class="card-body d-flex flex-column p-4">
                         <div class="d-flex justify-content-between align-items-start">
                              <h5 class="card-title mb-0">${project.name}</h5>
@@ -193,7 +193,7 @@ export class UI {
                              </div>
                         </div>
                         <p class="project-card__meta flex-grow-1 mt-3">${objectives.length} objectives · ${cycles.length} cycles</p>
-                        <div class="project-card__link">Open cockpit <i class="bi bi-arrow-right ms-1"></i></div>
+                        <button type="button" class="project-card__link btn p-0 align-self-start">Open cockpit <i class="bi bi-arrow-right ms-1"></i></button>
                     </div>
                 </div>
             </div>`;

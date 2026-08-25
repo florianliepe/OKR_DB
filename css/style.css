@@ -89,7 +89,8 @@ button, input, select, textarea { font: inherit; }
 .project-card--action { background: var(--brand-surface); border-style: dashed; }
 .project-card .card-title { font-size: 1.15rem; font-weight: 550; letter-spacing: -.02em; }
 .project-card__meta { color: var(--brand-muted); font-size: .78rem; }
-.project-card__link { color: var(--brand-orange-deep); font-size: .75rem; font-weight: 750; text-transform: uppercase; }
+.project-card__link { background: transparent; border: 0; color: var(--brand-orange-deep); font-size: .75rem; font-weight: 750; text-transform: uppercase; }
+.project-card__link:hover { color: var(--brand-ink); }
 
 .dashboard-card, .okr-card, .wb-item-card { background-color: var(--brand-paper); border: 1px solid var(--brand-soft-line); }
 .dashboard-card .card-title { color: var(--brand-muted) !important; font-size: .72rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
