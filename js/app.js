@@ -2,6 +2,7 @@ import { auth } from './firebase-config.js';
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-auth.js";
 import { FirestoreStore } from './firestore-store.js';
 import { UI } from './ui.js';
+import { ChatController } from './chat-controller.js';
 
 onAuthStateChanged(auth, user => {
     const isLoginPage = window.location.pathname.endsWith('login.html');
@@ -31,6 +32,7 @@ function run(store, ui, userId) {
     let dashboardOwnerFilter = 'all';
     let dashboardResponsibleFilter = 'all';
     let workbenchUnsubscribe = null;
+    let chatController = null;
 
     function cleanupListeners() {
         currentViewListeners.forEach(({ element, type, handler }) => element.removeEventListener(type, handler));
@@ -38,6 +40,10 @@ function run(store, ui, userId) {
         if (workbenchUnsubscribe) {
             workbenchUnsubscribe();
             workbenchUnsubscribe = null;
+        }
+        if (chatController) {
+            chatController.destroy();
+            chatController = null;
         }
     }
     
@@ -131,6 +137,14 @@ function run(store, ui, userId) {
             }
         });
 
+        addListener(document.getElementById('app-container'), 'keydown', e => {
+            const card = e.target.closest('.project-card[role="button"]');
+            if (card && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                card.click();
+            }
+        });
+
         const importInput = document.getElementById('import-project-input');
         if (importInput) {
             addListener(importInput, 'change', async e => {
@@ -181,6 +195,39 @@ function run(store, ui, userId) {
         
         const userRole = store.getCurrentUserRole();
         ui.renderMainLayout(project, userRole);
+
+        chatController = new ChatController({
+            getProject: () => store.getCurrentProject(),
+            onAction: action => {
+                const currentProject = store.getCurrentProject();
+                const currentRole = store.getCurrentUserRole();
+                if (!currentProject || currentRole === 'viewer') {
+                    ui.showToast('You need edit access to apply this suggestion.', 'warning');
+                    return;
+                }
+                if (action.type === 'create_objective') ui.openObjectiveDraft(action.payload, currentProject);
+                if (action.type === 'create_key_result') ui.openKeyResultDraft(action.payload, currentProject);
+            }
+        });
+        chatController.mount();
+
+        const appShell = document.getElementById('app-shell');
+        const sidebarToggle = document.getElementById('sidebar-toggle');
+        const sidebarBackdrop = document.getElementById('sidebar-backdrop');
+        const closeSidebar = () => {
+            appShell?.classList.remove('sidebar-open');
+            sidebarToggle?.setAttribute('aria-expanded', 'false');
+            if (sidebarBackdrop) sidebarBackdrop.hidden = true;
+        };
+        addListener(sidebarToggle, 'click', () => {
+            const isOpen = appShell.classList.toggle('sidebar-open');
+            sidebarToggle.setAttribute('aria-expanded', String(isOpen));
+            if (sidebarBackdrop) sidebarBackdrop.hidden = !isOpen;
+        });
+        addListener(sidebarBackdrop, 'click', closeSidebar);
+        addListener(document.getElementById('sidebar'), 'click', event => {
+            if (event.target.closest('.nav-link')) closeSidebar();
+        });
 
         const router = () => {
             let currentProject = store.getCurrentProject();

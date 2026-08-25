@@ -53,6 +53,47 @@ export class UI {
     showModal(id) { this._getOrInitModal(id)?.show(); }
     hideModal(id) { this._getOrInitModal(id)?.hide(); }
 
+    openObjectiveDraft(payload, project) {
+        const form = document.getElementById('objective-form');
+        if (!form || !project) return;
+        form.reset();
+        document.getElementById('objective-id').value = '';
+        document.getElementById('objective-modal-title').textContent = 'Review objective draft';
+        const owners = [{ id: 'company', name: project.companyName }, ...(project.teams || [])];
+        const ownerSelect = document.getElementById('objective-owner');
+        ownerSelect.innerHTML = owners.map(owner => `<option value="${owner.id}">${owner.name}</option>`).join('');
+        ownerSelect.value = owners.some(owner => owner.id === payload.ownerId) ? payload.ownerId : 'company';
+        const activeCycle = (project.cycles || []).find(cycle => cycle.status === 'Active');
+        const dependsOnSelect = document.getElementById('objective-depends-on');
+        dependsOnSelect.innerHTML = (project.objectives || []).filter(objective => objective.cycleId === activeCycle?.id).map(objective => `<option value="${objective.id}">${objective.title}</option>`).join('');
+        document.getElementById('objective-title').value = payload.title || '';
+        document.getElementById('objective-notes').value = payload.notes || '';
+        document.getElementById('objective-responsible').value = payload.responsible || '';
+        document.getElementById('objective-start-date').value = payload.startDate || '';
+        document.getElementById('objective-end-date').value = payload.endDate || '';
+        this.showModal('objectiveModal');
+    }
+
+    openKeyResultDraft(payload, project) {
+        const form = document.getElementById('kr-form');
+        const objective = (project?.objectives || []).find(item => item.id === payload.objectiveId);
+        if (!form || !objective) {
+            this.showToast('The suggested objective is no longer available.', 'warning');
+            return;
+        }
+        form.reset();
+        document.getElementById('kr-modal-title').textContent = 'Review key result draft';
+        document.getElementById('kr-objective-id').value = objective.id;
+        document.getElementById('kr-id').value = '';
+        document.getElementById('kr-title').value = payload.title || '';
+        document.getElementById('kr-start-value').value = payload.startValue ?? 0;
+        document.getElementById('kr-current-value').value = payload.currentValue ?? 0;
+        document.getElementById('kr-target-value').value = payload.targetValue ?? '';
+        document.getElementById('kr-confidence').value = ['On Track', 'At Risk', 'Off Track'].includes(payload.confidence) ? payload.confidence : 'On Track';
+        document.getElementById('kr-notes').value = payload.notes || '';
+        this.showModal('keyResultModal');
+    }
+
     _createSparklineSVG(history) {
         if (!history || history.length < 2) return '<div class="sparkline-placeholder"></div>';
         const width = 100, height = 20, strokeWidth = 2;
@@ -85,25 +126,32 @@ export class UI {
             </div>
         ` : '';
         this.appContainer.innerHTML = `
-            <div class="container py-5">
-                <div class="text-center mb-5">
-                    <h1 class="display-4"><i class="bi bi-bullseye"></i> OKR Master</h1>
-                    <p class="lead">Select an OKR Project or create a new one.</p>
-                </div>
+            <main class="project-switcher">
+                <a class="brand-lockup mb-5" href="https://www.eraneos.com/" aria-label="Eraneos home">
+                    <span class="brand-wordmark">eraneos<span class="brand-mark"></span></span>
+                    <span class="brand-product">OKR Cockpit</span>
+                </a>
+                <header class="project-switcher__header">
+                    <div>
+                        <p class="eyebrow mb-2">Strategy execution</p>
+                        <h1>Choose where to focus next.</h1>
+                    </div>
+                    <p class="project-switcher__intro mb-0">Open an existing workspace or start a new OKR cycle with a shared view of outcomes, ownership, and delivery health.</p>
+                </header>
                 <div class="row g-4 justify-content-center" id="project-list">
                     <div class="col-12 col-md-6 col-lg-4">
-                        <div class="card project-card text-center h-100 bg-body-tertiary" id="create-new-project-card">
-                            <div class="card-body d-flex flex-column justify-content-center">
-                                <i class="bi bi-plus-circle-dotted fs-1"></i>
-                                <h5 class="card-title mt-3">Create New Project</h5>
+                        <div class="card project-card project-card--action h-100" id="create-new-project-card" role="button" tabindex="0">
+                            <div class="card-body d-flex flex-column justify-content-between p-4">
+                                <i class="bi bi-plus-lg fs-3 text-primary"></i>
+                                <div><p class="eyebrow mb-2">New workspace</p><h2 class="card-title mb-0">Create an OKR project</h2></div>
                             </div>
                         </div>
                     </div>
                     <div class="col-12 col-md-6 col-lg-4">
-                        <label for="import-project-input" class="card project-card text-center h-100 bg-body-tertiary" style="cursor: pointer;">
-                            <div class="card-body d-flex flex-column justify-content-center">
-                                <i class="bi bi-upload fs-1"></i>
-                                <h5 class="card-title mt-3">Import Project</h5>
+                        <label for="import-project-input" class="card project-card project-card--action h-100">
+                            <div class="card-body d-flex flex-column justify-content-between p-4">
+                                <i class="bi bi-upload fs-3 text-primary"></i>
+                                <div><p class="eyebrow mb-2">Restore</p><h2 class="card-title mb-0">Import a project backup</h2></div>
                                 <input type="file" id="import-project-input" accept=".json" style="display: none;">
                             </div>
                         </label>
@@ -113,7 +161,7 @@ export class UI {
                 <div class="row justify-content-center">
                     ${archivedSectionHtml}
                 </div>
-            </div>`;
+            </main>`;
         this.modalContainer.innerHTML = this.renderNewProjectModal();
     }
 
@@ -136,16 +184,16 @@ export class UI {
         
         return `
             <div class="col-12 col-md-6 col-lg-4">
-                <div class="card project-card bg-dark text-white h-100" data-project-id="${project.id}">
-                    <div class="card-body d-flex flex-column">
+                <div class="card project-card h-100" data-project-id="${project.id}" tabindex="0" role="button">
+                    <div class="card-body d-flex flex-column p-4">
                         <div class="d-flex justify-content-between align-items-start">
                              <h5 class="card-title mb-0">${project.name}</h5>
                              <div class="d-flex gap-2">
                                 ${actionButtons}
                              </div>
                         </div>
-                        <p class="card-text text-muted small flex-grow-1 mt-2">${objectives.length} objectives across ${cycles.length} cycles.</p>
-                        <div class="text-end text-primary">Open Project <i class="bi bi-arrow-right-circle"></i></div>
+                        <p class="project-card__meta flex-grow-1 mt-3">${objectives.length} objectives · ${cycles.length} cycles</p>
+                        <div class="project-card__link">Open cockpit <i class="bi bi-arrow-right ms-1"></i></div>
                     </div>
                 </div>
             </div>`;
@@ -155,43 +203,51 @@ export class UI {
         const canEdit = userRole === 'owner' || userRole === 'editor';
         const isOwner = userRole === 'owner';
         this.appContainer.innerHTML = `
-            <div class="container-fluid g-0">
+            <div class="container-fluid g-0" id="app-shell">
                 <div class="row g-0 vh-100">
-                    <div id="sidebar-col" class="col-auto bg-dark p-3">
+                    <aside id="sidebar-col" class="col-auto">
                         <nav id="sidebar" class="d-flex flex-column h-100">
-                            <div class="d-flex align-items-center mb-3 text-white text-decoration-none">
-                                <i class="bi bi-bullseye me-2 fs-4"></i><span class="fs-4 text-nowrap" id="sidebar-project-name">${project.name}</span>
-                            </div><hr>
+                            <a class="sidebar-brand text-decoration-none" href="https://www.eraneos.com/" aria-label="Eraneos home">
+                                <span class="brand-wordmark">eraneos<span class="brand-mark"></span></span>
+                                <span class="brand-product">OKR Cockpit</span>
+                            </a>
+                            <div class="sidebar-project"><span class="sidebar-project__label">Current workspace</span><span id="sidebar-project-name">${project.name}</span></div>
                             <ul class="nav nav-pills flex-column mb-auto">
+                                <li><span class="nav-section-label">Steer</span></li>
                                 <li class="nav-item"><a href="#dashboard" class="nav-link text-white" data-view="dashboard-view"><i class="bi bi-bar-chart-line-fill me-2"></i> Dashboard</a></li>
                                 <li class="nav-item"><a href="#explorer" class="nav-link text-white" data-view="explorer-view"><i class="bi bi-columns-gap me-2"></i> OKR Explorer</a></li>
                                 <li class="nav-item"><a href="#cascade" class="nav-link text-white" data-view="cascade-view"><i class="bi bi-diagram-3-fill me-2"></i> Cascade</a></li>
+                                <li class="nav-item"><a href="#risk-board" class="nav-link text-white" data-view="risk-board-view"><i class="bi bi-exclamation-triangle-fill me-2"></i> Risk Board</a></li>
+                                <li><span class="nav-section-label">Plan & learn</span></li>
                                 <li class="nav-item"><a href="#workbench" class="nav-link text-white" data-view="workbench-view"><i class="bi bi-lightbulb-fill me-2"></i> Workbench</a></li>
                                 <li class="nav-item"><a href="#gantt" class="nav-link text-white" data-view="gantt-view"><i class="bi bi-bar-chart-steps me-2"></i> Gantt</a></li>
-                                <li class="nav-item"><a href="#risk-board" class="nav-link text-white" data-view="risk-board-view"><i class="bi bi-exclamation-triangle-fill me-2"></i> Risk Board</a></li>
                                 <li class="nav-item"><a href="#reporting" class="nav-link text-white" data-view="reporting-view"><i class="bi bi-clock-history me-2"></i> Reporting</a></li>
                                 <li class="nav-item"><a href="#cycles" class="nav-link text-white" data-view="cycles-view"><i class="bi bi-arrow-repeat me-2"></i> Cycle Management</a></li>
                                 ${isOwner ? `<li class="nav-item"><a href="#settings" class="nav-link text-white" data-view="settings-view"><i class="bi bi-gear-fill me-2"></i> Settings</a></li>` : ''}
-                            </ul><hr>
-                            <div class="d-flex flex-column gap-2">
-                                <button class="btn btn-sm btn-outline-secondary" id="export-project-btn"><i class="bi bi-download me-2"></i> Export Project</button>
-                                <button class="btn btn-sm btn-outline-light" id="back-to-projects"><i class="bi bi-box-arrow-left me-2"></i>All Projects</button>
-                                <button class="btn btn-sm btn-danger" id="logout-btn"><i class="bi bi-power me-2"></i>Logout</button>
+                            </ul>
+                            <div class="sidebar-actions d-flex flex-column gap-2 pt-3">
+                                <button class="btn btn-sm" id="export-project-btn"><i class="bi bi-download me-2"></i> Export project</button>
+                                <button class="btn btn-sm" id="back-to-projects"><i class="bi bi-grid me-2"></i> All workspaces</button>
+                                <button class="btn btn-sm btn-logout" id="logout-btn"><i class="bi bi-box-arrow-right me-2"></i> Sign out</button>
                             </div>
                         </nav>
-                    </div>
+                    </aside>
+                    <button class="sidebar-backdrop" id="sidebar-backdrop" type="button" aria-label="Close navigation" hidden></button>
                     <div class="col p-0 d-flex flex-column main-content-col">
                         <nav class="navbar top-bar">
                             <div class="container-fluid">
-                                <span class="navbar-brand mb-0 h1" id="view-title"></span>
+                                <div class="d-flex align-items-center gap-2">
+                                    <button type="button" class="btn btn-outline-secondary mobile-nav-toggle" id="sidebar-toggle" aria-label="Open navigation" aria-expanded="false"><i class="bi bi-list"></i></button>
+                                    <span class="navbar-brand mb-0 h1" id="view-title"></span>
+                                </div>
                                 <div class="d-flex align-items-center gap-2" id="nav-controls">
-                                    <input class="form-control" type="search" id="search-input" placeholder="Search objectives..." style="width: 250px;">
+                                    <input class="form-control" type="search" id="search-input" placeholder="Search objectives…" aria-label="Search objectives" style="width: 250px;">
                                     <div class="dropdown">
                                         <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" id="cycle-selector-btn" disabled></button>
                                         <ul class="dropdown-menu dropdown-menu-end" id="cycle-selector-list"></ul>
                                     </div>
-                                    ${canEdit ? `<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#objectiveModal" id="add-objective-btn"><i class="bi bi-plus-circle"></i> Add Objective</button>` : ''}
-                                    <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#shareProjectModal" id="share-project-btn"><i class="bi bi-people-fill"></i> Share</button>
+                                    ${canEdit ? `<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#objectiveModal" id="add-objective-btn"><i class="bi bi-plus-lg"></i> Add objective</button>` : ''}
+                                    <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#shareProjectModal" id="share-project-btn"><i class="bi bi-people"></i> Share</button>
                                 </div>
                             </div>
                         </nav>
@@ -208,6 +264,18 @@ export class UI {
                         </div>
                     </div>
                 </div>
+                <button type="button" class="chat-launcher" id="okr-chat-launcher" aria-controls="okr-chat-panel" aria-expanded="false"><i class="bi bi-stars"></i><span>Ask OKR Coach</span></button>
+                <section class="chat-panel" id="okr-chat-panel" aria-label="OKR Coach chat" hidden>
+                    <header class="chat-panel__header">
+                        <div><h2 class="chat-panel__title"><i class="bi bi-stars me-2"></i>OKR Coach</h2><p class="chat-panel__subtitle">Context-aware guidance for this workspace</p></div>
+                        <div class="d-flex gap-1"><button type="button" class="btn" id="okr-chat-new" aria-label="Start a new chat" title="New chat"><i class="bi bi-arrow-clockwise"></i></button><button type="button" class="btn" id="okr-chat-close" aria-label="Close chat"><i class="bi bi-x-lg"></i></button></div>
+                    </header>
+                    <div class="chat-panel__messages" id="okr-chat-messages" aria-live="polite"></div>
+                    <form class="chat-panel__form" id="okr-chat-form">
+                        <div class="chat-panel__composer"><textarea class="form-control" id="okr-chat-input" rows="1" maxlength="4000" placeholder="Ask about your OKRs…" aria-label="Message OKR Coach" required></textarea><button class="btn btn-primary" id="okr-chat-submit" type="submit" aria-label="Send message"><i class="bi bi-arrow-up"></i></button></div>
+                        <p class="chat-panel__privacy">Relevant project context is shared with the configured Eraneos n8n workflow.</p>
+                    </form>
+                </section>
             </div>`;
         this.modalContainer.innerHTML = `${this.renderObjectiveModal()}${this.renderKeyResultModal()}${this.renderShareProjectModal()}`;
     }
@@ -478,7 +546,7 @@ export class UI {
                 contentHtml = `
                     <div class="row g-4">
                         <div class="col-12">
-                            <div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Overall Progress (${activeCycle.name})</h5><h2 class="display-4">${overallAverage}%</h2><div class="progress" style="height: 2rem;"><div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}"></div></div></div></div>
+                            <div class="card dashboard-card dashboard-card--hero"><div class="card-body p-4"><h5 class="card-title">Overall progress · ${activeCycle.name}</h5><div class="d-flex justify-content-between align-items-end mb-3"><div><h2 class="display-4 mb-1">${overallAverage}%</h2><p class="mb-0 text-white-50 small">Average objective attainment</p></div><i class="bi bi-arrow-up-right fs-3 text-white-50"></i></div><div class="progress" style="height: .65rem;"><div class="progress-bar" role="progressbar" style="width: ${overallAverage}%;" aria-valuenow="${overallAverage}" aria-valuemin="0" aria-valuemax="100"></div></div></div></div>
                         </div>
                         ${progressByOwnerWidget}
                         <div class="${(filterOwnerId === 'all' && filterResponsible === 'all') ? 'col-xl-6' : 'col-12'}">
@@ -572,10 +640,10 @@ export class UI {
             },
             options: {
                 scales: {
-                    y: { beginAtZero: true, ticks: { color: '#adb5bd', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)' } },
-                    x: { ticks: { color: '#adb5bd', maxRotation: 45, minRotation: 45 }, grid: { color: 'rgba(255,255,255,0.1)' } }
+                    y: { beginAtZero: true, ticks: { color: '#6f6965', stepSize: 1 }, grid: { color: 'rgba(32,32,32,0.08)' } },
+                    x: { ticks: { color: '#6f6965', maxRotation: 45, minRotation: 45 }, grid: { color: 'rgba(32,32,32,0.08)' } }
                 },
-                plugins: { legend: { labels: { color: '#adb5bd' } } }
+                plugins: { legend: { labels: { color: '#6f6965' } } }
             }
         });
     }
@@ -622,10 +690,10 @@ export class UI {
             },
             options: {
                 scales: {
-                    y: { beginAtZero: true, ticks: { color: '#adb5bd', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.1)' } },
-                    x: { ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.1)' } }
+                    y: { beginAtZero: true, ticks: { color: '#6f6965', stepSize: 1 }, grid: { color: 'rgba(32,32,32,0.08)' } },
+                    x: { ticks: { color: '#6f6965' }, grid: { color: 'rgba(32,32,32,0.08)' } }
                 },
-                plugins: { legend: { labels: { color: '#adb5bd' } } }
+                plugins: { legend: { labels: { color: '#6f6965' } } }
             }
         });
     }
@@ -673,8 +741,8 @@ export class UI {
             },
             options: {
                 scales: {
-                    y: { ticks: { color: '#adb5bd' }, grid: { color: 'rgba(255,255,255,0.1)' } },
-                    x: { ticks: { color: '#adb5bd' }, grid: { display: false } }
+                    y: { ticks: { color: '#6f6965' }, grid: { color: 'rgba(32,32,32,0.08)' } },
+                    x: { ticks: { color: '#6f6965' }, grid: { display: false } }
                 },
                 plugins: { legend: { display: false } }
             }
@@ -740,7 +808,8 @@ export class UI {
         const canEdit = userRole === 'owner' || userRole === 'editor';
         const highlightedTitle = this._highlightText(objective.title, searchTerm);
         const highlightedNotes = this._highlightText(objective.notes, searchTerm);
-        const notesHtml = (objective.notes && objective.notes.trim() !== '') ? `<div class="obj-notes">${marked.parse(highlightedNotes)}</div>` : '';
+        const parsedNotes = objective.notes && globalThis.DOMPurify ? DOMPurify.sanitize(marked.parse(highlightedNotes)) : '';
+        const notesHtml = parsedNotes ? `<div class="obj-notes">${parsedNotes}</div>` : '';
         const dependsOnList = (objective.dependsOn || []).map(depId => allObjectivesInCycle.find(o => o.id === depId)?.title).filter(Boolean).join('<br>');
         const dependsOnTooltip = dependsOnList ? `<strong>Depends On:</strong><br>${dependsOnList}` : '';
         const dependsOnCount = objective.dependsOn?.length || 0;
