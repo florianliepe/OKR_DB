@@ -3,6 +3,7 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 import { FirestoreStore } from './firestore-store.js';
 import { UI } from './ui.js';
 import { ChatController } from './chat-controller.js';
+import { normalizeOkrSpecification } from './okr-specification.js';
 
 onAuthStateChanged(auth, user => {
     const isLoginPage = window.location.pathname.endsWith('login.html');
@@ -205,6 +206,7 @@ function run(store, ui, userId) {
                     ui.showToast('You need edit access to apply this suggestion.', 'warning');
                     return;
                 }
+                if (action.type === 'define_okr_set') ui.openOkrSetDraft(action.payload, currentProject);
                 if (action.type === 'create_objective') ui.openObjectiveDraft(action.payload, currentProject);
                 if (action.type === 'create_key_result') ui.openKeyResultDraft(action.payload, currentProject);
             }
@@ -245,6 +247,7 @@ function run(store, ui, userId) {
 
             switch(hash) {
                 case '#dashboard': ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter); break;
+                case '#deep-dive': ui.renderDeepDiveView(currentProject, currentRole); break;
                 case '#explorer': ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter, currentRole); break;
                 case '#cascade': ui.renderCascadeView(currentProject); break;
                 case '#workbench': setupWorkbench(currentProject, currentRole); break;
@@ -336,6 +339,16 @@ function run(store, ui, userId) {
         });
         
         addListener(document.getElementById('app-container'), 'click', async e => {
+            if (e.target.closest('.open-okr-coach-btn')) {
+                document.getElementById('okr-chat-launcher')?.click();
+                return;
+            }
+            if (e.target.closest('.review-okr-spec-btn')) {
+                const currentProject = store.getCurrentProject();
+                const activeCycle = currentProject?.cycles.find(cycle => cycle.status === 'Active');
+                if (activeCycle) ui.openOkrSetDraft({ cycleId: activeCycle.id, specification: activeCycle.okrSpecification }, currentProject);
+                return;
+            }
             if (e.target.closest('.delete-obj-btn')) {
                 const objId = e.target.closest('.delete-obj-btn').dataset.objectiveId;
                 if(confirm('Are you sure you want to delete this objective?')) {
@@ -541,6 +554,8 @@ function run(store, ui, userId) {
                     startDate: document.getElementById('objective-start-date').value, endDate: document.getElementById('objective-end-date').value,
                     responsible: document.getElementById('objective-responsible').value.trim()
                 };
+                const draftSpecification = e.target.dataset.specification ? JSON.parse(e.target.dataset.specification) : null;
+                if (draftSpecification && Object.keys(draftSpecification).length) data.specification = normalizeOkrSpecification(draftSpecification);
                 if(id) await store.updateObjective(id, data); else await store.addObjective(data);
                 ui.showToast(id ? 'Objective updated.' : 'Objective added.'); ui.hideModal('objectiveModal'); router();
             }
@@ -553,6 +568,37 @@ function run(store, ui, userId) {
                 };
                 if (krId) await store.updateKeyResult(objId, krId, data); else await store.addKeyResult(objId, data);
                 ui.showToast(krId ? 'Key Result updated.' : 'Key Result added.'); ui.hideModal('keyResultModal'); router();
+            }
+            if (e.target.id === 'okr-specification-form') {
+                const toList = id => document.getElementById(id).value.split(/[\n,]/).map(value => value.trim()).filter(Boolean);
+                const specification = normalizeOkrSpecification({
+                    category: document.getElementById('okr-spec-category').value,
+                    level: document.getElementById('okr-spec-level').value,
+                    commitment: document.getElementById('okr-spec-commitment').value,
+                    context: {
+                        industry: document.getElementById('okr-spec-industry').value,
+                        services: toList('okr-spec-services'),
+                        geography: document.getElementById('okr-spec-geography').value,
+                        businessUnit: document.getElementById('okr-spec-business-unit').value,
+                        stakeholders: toList('okr-spec-stakeholders'),
+                        timeHorizon: document.getElementById('okr-spec-time-horizon').value
+                    },
+                    outcomeThesis: document.getElementById('okr-spec-outcome-thesis').value,
+                    rationale: document.getElementById('okr-spec-rationale').value,
+                    assumptions: toList('okr-spec-assumptions'),
+                    tensions: toList('okr-spec-tensions'),
+                    successSignals: toList('okr-spec-success-signals'),
+                    perspectives: toList('okr-spec-perspectives'),
+                    derivedAt: new Date().toISOString(),
+                    source: 'agent-reviewed'
+                });
+                const result = await store.updateOkrSpecification(document.getElementById('okr-spec-cycle-id').value, specification);
+                if (result.success) {
+                    ui.hideModal('okrSpecificationModal');
+                    ui.showToast('OKR set specification saved.');
+                    window.location.hash = '#deep-dive';
+                    router();
+                } else ui.showToast(result.message, 'danger');
             }
             if (e.target.id === 'new-cycle-form') {
                 const data = { name: document.getElementById('cycle-name').value, startDate: document.getElementById('cycle-start-date').value, endDate: document.getElementById('cycle-end-date').value };
@@ -599,6 +645,7 @@ function run(store, ui, userId) {
 
             if (modal.id === 'objectiveModal' && trigger) {
                 const form = document.getElementById('objective-form'); form.reset();
+                form.dataset.specification = '{}';
                 document.getElementById('objective-id').value = '';
                 const ownerSelect = document.getElementById('objective-owner');
                 const owners = [{ id: 'company', name: currentProject.companyName }, ...currentProject.teams];
@@ -612,6 +659,7 @@ function run(store, ui, userId) {
                     document.getElementById('objective-modal-title').textContent = 'Edit Objective';
                     const obj = currentProject.objectives.find(o => o.id === objId);
                     if (obj) {
+                        form.dataset.specification = JSON.stringify(obj.specification || {});
                         document.getElementById('objective-id').value = obj.id; document.getElementById('objective-title').value = obj.title; document.getElementById('objective-owner').value = obj.ownerId;
                         document.getElementById('objective-notes').value = obj.notes || ''; document.getElementById('objective-start-date').value = obj.startDate || '';
                         document.getElementById('objective-end-date').value = obj.endDate || ''; document.getElementById('objective-responsible').value = obj.responsible || '';

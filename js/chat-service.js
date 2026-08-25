@@ -1,8 +1,9 @@
 import { APP_CONFIG } from './config.js';
+import { normalizeOkrSpecification, resolveObjectiveSpecification } from './okr-specification.js';
 
 const SESSION_STORAGE_KEY = 'eraneos-okr-chat-session';
 const ACTION_BLOCK_PATTERN = /```okr_action\s*([\s\S]*?)```/gi;
-const SUPPORTED_ACTIONS = new Set(['create_objective', 'create_key_result']);
+const SUPPORTED_ACTIONS = new Set(['define_okr_set', 'create_objective', 'create_key_result']);
 
 function createSessionId() {
     if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
@@ -23,10 +24,15 @@ function readResponseText(payload) {
 }
 
 function normalizeAction(candidate) {
-    if (!candidate || !SUPPORTED_ACTIONS.has(candidate.type) || !candidate.payload) return null;
+    if (!candidate || !SUPPORTED_ACTIONS.has(candidate.type) || !candidate.payload || typeof candidate.payload !== 'object') return null;
+    const defaultLabels = {
+        define_okr_set: 'Review OKR set specification',
+        create_objective: 'Review objective draft',
+        create_key_result: 'Review key result draft'
+    };
     return {
         type: candidate.type,
-        label: String(candidate.label || (candidate.type === 'create_objective' ? 'Review objective draft' : 'Review key result draft')),
+        label: String(candidate.label || defaultLabels[candidate.type]).slice(0, 100),
         payload: candidate.payload
     };
 }
@@ -55,6 +61,7 @@ export function parseChatResponse(payload) {
 export function buildProjectContext(project, objectiveLimit = APP_CONFIG.chatContextObjectiveLimit) {
     if (!project) return null;
     const activeCycle = (project.cycles || []).find(cycle => cycle.status === 'Active') || null;
+    const setSpecification = normalizeOkrSpecification(activeCycle?.okrSpecification);
     const objectives = (project.objectives || [])
         .filter(objective => !activeCycle || objective.cycleId === activeCycle.id)
         .slice(0, objectiveLimit)
@@ -64,6 +71,8 @@ export function buildProjectContext(project, objectiveLimit = APP_CONFIG.chatCon
             ownerId: objective.ownerId,
             responsible: objective.responsible || null,
             progress: Number(objective.progress || 0),
+            specification: normalizeOkrSpecification(objective.specification),
+            effectiveSpecification: resolveObjectiveSpecification(setSpecification, objective.specification),
             keyResults: (objective.keyResults || []).map(keyResult => ({
                 id: keyResult.id,
                 title: keyResult.title,
@@ -75,7 +84,13 @@ export function buildProjectContext(project, objectiveLimit = APP_CONFIG.chatCon
 
     return {
         project: { name: project.name, companyName: project.companyName || project.name },
-        activeCycle: activeCycle ? { id: activeCycle.id, name: activeCycle.name, startDate: activeCycle.startDate, endDate: activeCycle.endDate } : null,
+        activeCycle: activeCycle ? {
+            id: activeCycle.id,
+            name: activeCycle.name,
+            startDate: activeCycle.startDate,
+            endDate: activeCycle.endDate,
+            okrSpecification: setSpecification
+        } : null,
         teams: (project.teams || []).map(team => ({ id: team.id, name: team.name })),
         objectives,
         contextTruncated: (project.objectives || []).length > objectiveLimit

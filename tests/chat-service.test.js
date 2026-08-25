@@ -21,10 +21,16 @@ test('ignores unsupported action types', () => {
     assert.deepEqual(response.actions, []);
 });
 
+test('accepts an agent-derived OKR set specification action', () => {
+    const response = parseChatResponse('```okr_action\n{"type":"define_okr_set","payload":{"cycleId":"q1","specification":{"category":"Strategic"}}}\n```');
+    assert.equal(response.actions[0].type, 'define_okr_set');
+    assert.equal(response.actions[0].payload.specification.category, 'Strategic');
+});
+
 test('builds bounded context for the active cycle', () => {
     const context = buildProjectContext({
         name: 'Transformation', companyName: 'Eraneos',
-        cycles: [{ id: 'q1', name: 'Q1', status: 'Active' }, { id: 'q2', name: 'Q2', status: 'Draft' }],
+        cycles: [{ id: 'q1', name: 'Q1', status: 'Active', okrSpecification: { category: 'Strategic', level: 'Group' } }, { id: 'q2', name: 'Q2', status: 'Draft' }],
         teams: [{ id: 'team-a', name: 'Team A' }],
         objectives: [
             { id: 'obj-1', cycleId: 'q1', title: 'Active objective', keyResults: [] },
@@ -32,5 +38,6 @@ test('builds bounded context for the active cycle', () => {
         ]
     });
     assert.equal(context.activeCycle.id, 'q1');
+    assert.equal(context.activeCycle.okrSpecification.category, 'Strategic');
     assert.deepEqual(context.objectives.map(objective => objective.id), ['obj-1']);
 });

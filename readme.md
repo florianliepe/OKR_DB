@@ -26,6 +26,8 @@ The webhook URL and request timeout live in `js/config.js`. The frontend sends t
 
 Use [the OKR Coach system instruction](docs/okr-chatbot-system-instruction.md) in the n8n AI Agent. Ordinary Markdown responses render in the chat. Valid `okr_action` blocks become review buttons that prefill existing dashboard forms; they never save automatically.
 
+The coach can run a skippable, 5–7 question circular interview and propose an OKR set specification for review. Accepted specifications appear in the **Deep Dive** view with operating context, systemic perspectives, assumptions, tensions, success signals, and inherited category/level/commitment classifications. Objective-level classifications can override the set defaults.
+
 ## Architecture
 
 - `js/app.js` — authentication-aware application controller and event coordination
@@ -33,6 +35,7 @@ Use [the OKR Coach system instruction](docs/okr-chatbot-system-instruction.md) i
 - `js/firestore-store.js` — Firestore persistence and domain calculations
 - `js/chat-service.js` — n8n transport, project-context shaping, and response parsing
 - `js/chat-controller.js` — accessible chat interaction and rendering
+- `js/okr-specification.js` — specification normalization and set-to-objective inheritance
 - `css/` — Eraneos design tokens and responsive component styling
 - `tests/` — contract tests for the assistant integration
 

@@ -212,6 +212,16 @@ export class FirestoreStore {
         await this._updateCurrentProjectInFirestore({ foundation: data });
     }
 
+    async updateOkrSpecification(cycleId, specification) {
+        const project = this.getCurrentProject();
+        if (!project) return { success: false, message: 'Project not found.' };
+        const cycle = project.cycles.find(item => item.id === cycleId);
+        if (!cycle) return { success: false, message: 'OKR cycle not found.' };
+        cycle.okrSpecification = specification;
+        await this._updateCurrentProjectInFirestore({ cycles: project.cycles });
+        return { success: true };
+    }
+
     async addObjective(data) {
         const project = this.getCurrentProject();
         if (!project) return;

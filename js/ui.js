@@ -1,3 +1,5 @@
+import { hasOkrSpecification, normalizeOkrSpecification, OKR_CATEGORIES, OKR_COMMITMENTS, OKR_LEVELS, resolveObjectiveSpecification } from './okr-specification.js';
+
 export class UI {
     constructor() {
         this.appContainer = document.getElementById('app-container');
@@ -53,6 +55,10 @@ export class UI {
     showModal(id) { this._getOrInitModal(id)?.show(); }
     hideModal(id) { this._getOrInitModal(id)?.hide(); }
 
+    _escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character]);
+    }
+
     openObjectiveDraft(payload, project) {
         const form = document.getElementById('objective-form');
         if (!form || !project) return;
@@ -71,6 +77,7 @@ export class UI {
         document.getElementById('objective-responsible').value = payload.responsible || '';
         document.getElementById('objective-start-date').value = payload.startDate || '';
         document.getElementById('objective-end-date').value = payload.endDate || '';
+        form.dataset.specification = JSON.stringify(payload.specification || {});
         this.showModal('objectiveModal');
     }
 
@@ -92,6 +99,34 @@ export class UI {
         document.getElementById('kr-confidence').value = ['On Track', 'At Risk', 'Off Track'].includes(payload.confidence) ? payload.confidence : 'On Track';
         document.getElementById('kr-notes').value = payload.notes || '';
         this.showModal('keyResultModal');
+    }
+
+    openOkrSetDraft(payload, project) {
+        const form = document.getElementById('okr-specification-form');
+        const activeCycle = (project?.cycles || []).find(cycle => cycle.status === 'Active');
+        if (!form || !activeCycle) {
+            this.showToast('An active cycle is required before defining an OKR set.', 'warning');
+            return;
+        }
+        const specification = normalizeOkrSpecification(payload.specification || payload);
+        form.reset();
+        document.getElementById('okr-spec-cycle-id').value = payload.cycleId || activeCycle.id;
+        document.getElementById('okr-spec-category').value = specification.category;
+        document.getElementById('okr-spec-level').value = specification.level;
+        document.getElementById('okr-spec-commitment').value = specification.commitment;
+        document.getElementById('okr-spec-industry').value = specification.context.industry;
+        document.getElementById('okr-spec-services').value = specification.context.services.join('\n');
+        document.getElementById('okr-spec-geography').value = specification.context.geography;
+        document.getElementById('okr-spec-business-unit').value = specification.context.businessUnit;
+        document.getElementById('okr-spec-stakeholders').value = specification.context.stakeholders.join('\n');
+        document.getElementById('okr-spec-time-horizon').value = specification.context.timeHorizon;
+        document.getElementById('okr-spec-outcome-thesis').value = specification.outcomeThesis;
+        document.getElementById('okr-spec-rationale').value = specification.rationale;
+        document.getElementById('okr-spec-assumptions').value = specification.assumptions.join('\n');
+        document.getElementById('okr-spec-tensions').value = specification.tensions.join('\n');
+        document.getElementById('okr-spec-success-signals').value = specification.successSignals.join('\n');
+        document.getElementById('okr-spec-perspectives').value = specification.perspectives.join('\n');
+        this.showModal('okrSpecificationModal');
     }
 
     _createSparklineSVG(history) {
@@ -215,6 +250,7 @@ export class UI {
                             <ul class="nav nav-pills flex-column mb-auto">
                                 <li><span class="nav-section-label">Steer</span></li>
                                 <li class="nav-item"><a href="#dashboard" class="nav-link text-white" data-view="dashboard-view"><i class="bi bi-bar-chart-line-fill me-2"></i> Dashboard</a></li>
+                                <li class="nav-item"><a href="#deep-dive" class="nav-link text-white" data-view="deep-dive-view"><i class="bi bi-compass me-2"></i> OKR Deep Dive</a></li>
                                 <li class="nav-item"><a href="#explorer" class="nav-link text-white" data-view="explorer-view"><i class="bi bi-columns-gap me-2"></i> OKR Explorer</a></li>
                                 <li class="nav-item"><a href="#cascade" class="nav-link text-white" data-view="cascade-view"><i class="bi bi-diagram-3-fill me-2"></i> Cascade</a></li>
                                 <li class="nav-item"><a href="#risk-board" class="nav-link text-white" data-view="risk-board-view"><i class="bi bi-exclamation-triangle-fill me-2"></i> Risk Board</a></li>
@@ -253,6 +289,7 @@ export class UI {
                         </nav>
                         <div class="p-4 content-scroll-area">
                             <div id="dashboard-view" class="view-container" style="display:none;"></div>
+                            <div id="deep-dive-view" class="view-container" style="display:none;"></div>
                             <div id="explorer-view" class="view-container" style="display:none;"></div>
                             <div id="cascade-view" class="view-container" style="display:none;"></div>
                             <div id="workbench-view" class="view-container" style="display:none;"></div>
@@ -277,7 +314,7 @@ export class UI {
                     </form>
                 </section>
             </div>`;
-        this.modalContainer.innerHTML = `${this.renderObjectiveModal()}${this.renderKeyResultModal()}${this.renderShareProjectModal()}`;
+        this.modalContainer.innerHTML = `${this.renderObjectiveModal()}${this.renderKeyResultModal()}${this.renderOkrSpecificationModal()}${this.renderShareProjectModal()}`;
     }
 
     populateShareModal(members, isOwner) {
@@ -332,18 +369,21 @@ export class UI {
         
         const viewsWithNav = ['explorer-view', 'dashboard-view', 'gantt-view', 'risk-board-view', 'reporting-view'];
         if (viewsWithNav.includes(viewId)) {
+            navControls.classList.remove('d-none');
             navControls.style.display = 'flex';
             document.getElementById('search-input').style.display = viewId === 'explorer-view' ? 'block' : 'none';
             document.querySelector('#nav-controls .dropdown').style.display = 'flex';
             const addObjectiveBtn = document.getElementById('add-objective-btn');
             if (addObjectiveBtn) addObjectiveBtn.style.display = 'block';
         } else {
+            navControls.classList.add('d-none');
             navControls.style.display = 'none';
         }
 
         if (viewTitle) {
             const titles = {
                 'dashboard-view': 'Dashboard',
+                'deep-dive-view': 'OKR Deep Dive',
                 'explorer-view': 'OKR Explorer',
                 'cascade-view': 'OKR Cascade',
                 'workbench-view': 'Workbench',
@@ -558,12 +598,116 @@ export class UI {
                     </div>`;
             }
         }
-        view.innerHTML = `<div class="row g-3 justify-content-end mb-3"><div class="col-md-4"><label for="dashboard-filter-owner" class="form-label">Filter by Owner</label><select id="dashboard-filter-owner" class="form-select"><option value="all" ${filterOwnerId === 'all' ? 'selected' : ''}>All Owners</option>${ownerFilterOptionsHtml}</select></div><div class="col-md-4"><label for="dashboard-filter-responsible" class="form-label">Filter by Responsible</label><select id="dashboard-filter-responsible" class="form-select"><option value="all" ${filterResponsible === 'all' ? 'selected' : ''}>All</option>${responsibleFilterOptionsHtml}</select></div></div>${contentHtml}`;
+        const specificationReady = hasOkrSpecification(activeCycle?.okrSpecification);
+        const deepDiveBanner = activeCycle ? `<a href="#deep-dive" class="deep-dive-banner"><span class="deep-dive-banner__icon"><i class="bi bi-compass"></i></span><span><strong>OKR Deep Dive</strong><small>${specificationReady ? 'Explore the agent-derived context, classification, and inheritance map.' : 'Run the circular interview to derive this set’s strategic specification.'}</small></span><i class="bi bi-arrow-right ms-auto"></i></a>` : '';
+        view.innerHTML = `<div class="row g-3 justify-content-end mb-3"><div class="col-md-4"><label for="dashboard-filter-owner" class="form-label">Filter by Owner</label><select id="dashboard-filter-owner" class="form-select"><option value="all" ${filterOwnerId === 'all' ? 'selected' : ''}>All Owners</option>${ownerFilterOptionsHtml}</select></div><div class="col-md-4"><label for="dashboard-filter-responsible" class="form-label">Filter by Responsible</label><select id="dashboard-filter-responsible" class="form-select"><option value="all" ${filterResponsible === 'all' ? 'selected' : ''}>All</option>${responsibleFilterOptionsHtml}</select></div></div>${deepDiveBanner}${contentHtml}`;
         if (objectivesInCycleForCharts && objectivesInCycleForCharts.length > 0) {
             this._renderHealthTrendChart(objectivesInCycleForCharts);
             this._renderVelocityChart(objectivesInCycleForCharts);
             this._renderBurndownChart(project);
         }
+    }
+
+    renderDeepDiveView(project, userRole) {
+        const view = document.getElementById('deep-dive-view');
+        if (!view) return;
+        const activeCycle = (project.cycles || []).find(cycle => cycle.status === 'Active');
+        if (!activeCycle) {
+            view.innerHTML = '<div class="alert alert-warning">Activate an OKR cycle before creating a Deep Dive specification.</div>';
+            return;
+        }
+        const canEdit = userRole === 'owner' || userRole === 'editor';
+        const specification = normalizeOkrSpecification(activeCycle.okrSpecification);
+        const hasSpecification = hasOkrSpecification(specification);
+        const escape = value => this._escapeHtml(value);
+        const renderValue = value => {
+            const values = Array.isArray(value) ? value : [value];
+            const populated = values.filter(Boolean);
+            return populated.length ? populated.map(item => `<span class="deep-dive-chip">${escape(item)}</span>`).join('') : '<span class="deep-dive-empty">Not inferred yet</span>';
+        };
+        const renderList = values => values?.length
+            ? `<ul class="deep-dive-list">${values.map(value => `<li>${escape(value)}</li>`).join('')}</ul>`
+            : '<p class="deep-dive-empty mb-0">No evidence captured yet.</p>';
+
+        if (!hasSpecification) {
+            view.innerHTML = `
+                <section class="deep-dive-empty-state">
+                    <div class="deep-dive-empty-state__icon"><i class="bi bi-compass"></i></div>
+                    <p class="eyebrow mb-2">Agent-derived specification</p>
+                    <h2>Reveal the system behind this OKR set.</h2>
+                    <p>Start a guided 5–7 question interview. The coach will explore stakeholder perspectives, interactions, differences, consequences, and preferred futures before deriving the set specification.</p>
+                    <button type="button" class="btn btn-primary open-okr-coach-btn"><i class="bi bi-stars me-1"></i> Start Deep Dive interview</button>
+                </section>`;
+            return;
+        }
+
+        const objectives = (project.objectives || []).filter(objective => objective.cycleId === activeCycle.id);
+        const objectiveCards = objectives.map(objective => {
+            const effective = resolveObjectiveSpecification(specification, objective.specification);
+            const overrideCount = Object.values(effective.overrides).filter(Boolean).length;
+            return `
+                <article class="deep-dive-objective">
+                    <header class="d-flex justify-content-between gap-3 align-items-start">
+                        <div><p class="eyebrow mb-1">Objective</p><h3>${escape(objective.title)}</h3></div>
+                        <span class="deep-dive-inheritance ${overrideCount ? 'is-overridden' : ''}">${overrideCount ? `${overrideCount} override${overrideCount === 1 ? '' : 's'}` : 'Inherited from set'}</span>
+                    </header>
+                    <div class="deep-dive-taxonomy deep-dive-taxonomy--compact">
+                        <div><span>Category</span><strong>${escape(effective.category || 'Not inferred')}</strong>${effective.overrides.category ? '<small>Objective override</small>' : '<small>Inherited</small>'}</div>
+                        <div><span>Level</span><strong>${escape(effective.level || 'Not inferred')}</strong>${effective.overrides.level ? '<small>Objective override</small>' : '<small>Inherited</small>'}</div>
+                        <div><span>Commitment</span><strong>${escape(effective.commitment || 'Not inferred')}</strong>${effective.overrides.commitment ? '<small>Objective override</small>' : '<small>Inherited</small>'}</div>
+                    </div>
+                    <div class="deep-dive-kr-summary"><span>${objective.keyResults?.length || 0} key results</span><span>${Math.round(objective.progress || 0)}% progress</span><span>${escape(objective.responsible || 'No responsible person')}</span></div>
+                </article>`;
+        }).join('');
+
+        view.innerHTML = `
+            <section class="deep-dive-hero">
+                <div>
+                    <p class="eyebrow mb-2">${escape(activeCycle.name)} · agent-derived</p>
+                    <h2>${escape(specification.outcomeThesis || 'OKR set specification')}</h2>
+                    <p>${escape(specification.rationale || 'The coach derived this specification from the circular interview and available dashboard context.')}</p>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button type="button" class="btn btn-outline-light open-okr-coach-btn"><i class="bi bi-stars me-1"></i> Continue interview</button>
+                    ${canEdit ? '<button type="button" class="btn btn-primary review-okr-spec-btn"><i class="bi bi-pencil me-1"></i> Review specification</button>' : ''}
+                </div>
+            </section>
+
+            <section class="deep-dive-taxonomy" aria-label="OKR classification">
+                <div><span>Category</span><strong>${escape(specification.category || 'Not inferred')}</strong><small>Strategic intent</small></div>
+                <div><span>Level</span><strong>${escape(specification.level || 'Not inferred')}</strong><small>Organizational scope</small></div>
+                <div><span>Commitment</span><strong>${escape(specification.commitment || 'Not inferred')}</strong><small>Ambition contract</small></div>
+            </section>
+
+            <div class="row g-4 mt-0">
+                <div class="col-xl-7">
+                    <section class="card deep-dive-section h-100"><div class="card-body p-4">
+                        <p class="eyebrow">Operating context</p>
+                        <div class="deep-dive-context-grid">
+                            <div><span>Industry</span>${renderValue(specification.context.industry)}</div>
+                            <div><span>Services / offering</span>${renderValue(specification.context.services)}</div>
+                            <div><span>Geography</span>${renderValue(specification.context.geography)}</div>
+                            <div><span>Business unit</span>${renderValue(specification.context.businessUnit)}</div>
+                            <div><span>Stakeholders</span>${renderValue(specification.context.stakeholders)}</div>
+                            <div><span>Time horizon</span>${renderValue(specification.context.timeHorizon)}</div>
+                        </div>
+                    </div></section>
+                </div>
+                <div class="col-xl-5">
+                    <section class="card deep-dive-section h-100"><div class="card-body p-4">
+                        <p class="eyebrow">Systemic perspectives</p>
+                        ${renderList(specification.perspectives)}
+                    </div></section>
+                </div>
+                <div class="col-lg-4"><section class="card deep-dive-section h-100"><div class="card-body p-4"><p class="eyebrow">Assumptions</p>${renderList(specification.assumptions)}</div></section></div>
+                <div class="col-lg-4"><section class="card deep-dive-section h-100"><div class="card-body p-4"><p class="eyebrow">Productive tensions</p>${renderList(specification.tensions)}</div></section></div>
+                <div class="col-lg-4"><section class="card deep-dive-section h-100"><div class="card-body p-4"><p class="eyebrow">Success signals</p>${renderList(specification.successSignals)}</div></section></div>
+            </div>
+
+            <section class="mt-5">
+                <div class="d-flex justify-content-between align-items-end gap-3 mb-3"><div><p class="eyebrow mb-1">Inheritance map</p><h2 class="h3 mb-0">Objectives in this set</h2></div><span class="text-muted small">Set defaults flow down unless the agent specifies an override.</span></div>
+                <div class="deep-dive-objectives">${objectiveCards || '<div class="card"><div class="card-body text-muted">No Objectives exist in this cycle yet.</div></div>'}</div>
+            </section>`;
     }
 
     _calculateObjectiveProgress(objective) {
@@ -1099,5 +1243,9 @@ export class UI {
     renderNewProjectModal() { return `<div class="modal fade" id="newProjectModal" data-bs-backdrop="static" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="new-project-form"><div class="modal-header"><h5 class="modal-title">New Project</h5></div><div class="modal-body"><h6>Details</h6><div class="mb-3"><label for="project-name" class="form-label">Name</label><input type="text" class="form-control" id="project-name" required></div><div class="mb-3"><label for="project-mission" class="form-label">Mission</label><textarea class="form-control" id="project-mission" rows="2" required></textarea></div><div class="mb-3"><label for="project-vision" class="form-label">Vision</label><textarea class="form-control" id="project-vision" rows="2" required></textarea></div><hr><h6>Teams</h6><p class="text-muted small">One team per line.</p><div class="mb-3"><textarea class="form-control" id="project-teams" rows="4"></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Create</button></div></form></div></div></div>`; }
     renderObjectiveModal() { return `<div class="modal fade" id="objectiveModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="objective-form"><div class="modal-header"><h5 class="modal-title" id="objective-modal-title">Add Objective</h5></div><div class="modal-body"><input type="hidden" id="objective-id"><div class="mb-3"><label for="objective-title" class="form-label">Title</label><input type="text" class="form-control" id="objective-title" required></div><div class="row mb-3"><div class="col-md-6"><label for="objective-owner" class="form-label">Owner</label><select class="form-select" id="objective-owner" required></select></div><div class="col-md-6"><label for="objective-responsible" class="form-label">Responsible</label><input type="text" class="form-control" id="objective-responsible"></div></div><div class="row mb-3"><div class="col-md-6"><label for="objective-start-date" class="form-label">Start Date</label><input type="date" class="form-control" id="objective-start-date"></div><div class="col-md-6"><label for="objective-end-date" class="form-label">End Date</label><input type="date" class="form-control" id="objective-end-date"></div></div><div class="mb-3"><label for="objective-notes" class="form-label">Notes</label><textarea class="form-control" id="objective-notes" rows="5"></textarea></div><div class="mb-3"><label for="objective-depends-on" class="form-label">Depends On</label><select class="form-select" id="objective-depends-on" multiple style="height: 150px;"></select></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div></div>`; }
     renderKeyResultModal() { return `<div class="modal fade" id="keyResultModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="kr-form"><div class="modal-header"><h5 class="modal-title" id="kr-modal-title">Add Key Result</h5></div><div class="modal-body"><input type="hidden" id="kr-objective-id"><input type="hidden" id="kr-id"><div class="mb-3"><label for="kr-title" class="form-label">Title</label><input type="text" class="form-control" id="kr-title" required></div><div class="row mb-3"><div class="col-md-3"><label for="kr-start-value" class="form-label">Start</label><input type="number" class="form-control" id="kr-start-value" value="0" required></div><div class="col-md-3"><label for="kr-current-value" class="form-label">Current</label><input type="number" class="form-control" id="kr-current-value" value="0" required></div><div class="col-md-3"><label for="kr-target-value" class="form-label">Target</label><input type="number" class="form-control" id="kr-target-value" required></div><div class="col-md-3"><label for="kr-confidence" class="form-label">Confidence</label><select class="form-select" id="kr-confidence" required><option>On Track</option><option>At Risk</option><option>Off Track</option></select></div></div><div class="mb-3"><label for="kr-notes" class="form-label">Notes</label><textarea class="form-control" id="kr-notes" rows="3"></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="submit" class="btn btn-primary">Save</button></div></form></div></div></div>`; }
+    renderOkrSpecificationModal() {
+        const options = (values, placeholder) => `<option value="">${placeholder}</option>${values.map(value => `<option value="${value}">${value}</option>`).join('')}`;
+        return `<div class="modal fade" id="okrSpecificationModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><form id="okr-specification-form"><div class="modal-header"><div><p class="eyebrow mb-1">Agent-derived metadata</p><h5 class="modal-title">Review OKR set specification</h5></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><input type="hidden" id="okr-spec-cycle-id"><div class="alert alert-info small">This specification was inferred from the circular interview. Review it before saving; Objectives inherit these values unless an explicit override exists.</div><h6 class="mb-3">Classification</h6><div class="row g-3 mb-4"><div class="col-md-4"><label class="form-label" for="okr-spec-category">Category</label><select class="form-select" id="okr-spec-category">${options(OKR_CATEGORIES, 'Not inferred')}</select></div><div class="col-md-4"><label class="form-label" for="okr-spec-level">Level</label><select class="form-select" id="okr-spec-level">${options(OKR_LEVELS, 'Not inferred')}</select></div><div class="col-md-4"><label class="form-label" for="okr-spec-commitment">Commitment</label><select class="form-select" id="okr-spec-commitment">${options(OKR_COMMITMENTS, 'Not inferred')}</select></div></div><h6 class="mb-3">Operating context</h6><div class="row g-3 mb-4"><div class="col-md-6"><label class="form-label" for="okr-spec-industry">Industry</label><input class="form-control" id="okr-spec-industry"></div><div class="col-md-6"><label class="form-label" for="okr-spec-geography">Country / region</label><input class="form-control" id="okr-spec-geography"></div><div class="col-md-6"><label class="form-label" for="okr-spec-business-unit">Business unit</label><input class="form-control" id="okr-spec-business-unit"></div><div class="col-md-6"><label class="form-label" for="okr-spec-time-horizon">Time horizon</label><input class="form-control" id="okr-spec-time-horizon"></div><div class="col-md-6"><label class="form-label" for="okr-spec-services">Services / offering</label><textarea class="form-control" id="okr-spec-services" rows="3" placeholder="One per line"></textarea></div><div class="col-md-6"><label class="form-label" for="okr-spec-stakeholders">Stakeholders</label><textarea class="form-control" id="okr-spec-stakeholders" rows="3" placeholder="One per line"></textarea></div></div><h6 class="mb-3">Systemic synthesis</h6><div class="mb-3"><label class="form-label" for="okr-spec-outcome-thesis">Outcome thesis</label><textarea class="form-control" id="okr-spec-outcome-thesis" rows="2"></textarea></div><div class="mb-3"><label class="form-label" for="okr-spec-rationale">Rationale</label><textarea class="form-control" id="okr-spec-rationale" rows="3"></textarea></div><div class="row g-3"><div class="col-md-6"><label class="form-label" for="okr-spec-perspectives">Stakeholder perspectives</label><textarea class="form-control" id="okr-spec-perspectives" rows="4" placeholder="One insight per line"></textarea></div><div class="col-md-6"><label class="form-label" for="okr-spec-tensions">Productive tensions</label><textarea class="form-control" id="okr-spec-tensions" rows="4" placeholder="One tension per line"></textarea></div><div class="col-md-6"><label class="form-label" for="okr-spec-assumptions">Assumptions</label><textarea class="form-control" id="okr-spec-assumptions" rows="4" placeholder="One assumption per line"></textarea></div><div class="col-md-6"><label class="form-label" for="okr-spec-success-signals">Success signals</label><textarea class="form-control" id="okr-spec-success-signals" rows="4" placeholder="One signal per line"></textarea></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save specification</button></div></form></div></div></div>`;
+    }
     renderShareProjectModal() { return `<div class="modal fade" id="shareProjectModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Share Project</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="owner-disclaimer" class="alert alert-info small">As owner, you can manage members.</div><h6>Members</h6><ul class="list-group mb-4" id="project-members-list"><li class="list-group-item">Loading...</li></ul><form id="invite-member-form"><h6>Invite New Member</h6><div class="input-group"><input type="email" id="invite-email-input" class="form-control" placeholder="user@example.com" required><select id="invite-role-select" class="form-select flex-grow-0 w-auto"><option value="editor">Editor</option><option value="viewer">Viewer</option></select><button type="submit" class="btn btn-primary">Invite</button></div></form></div></div></div></div>`; }
 }

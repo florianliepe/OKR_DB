@@ -1,6 +1,6 @@
 import { N8nChatService } from './chat-service.js';
 
-const INITIAL_MESSAGE = 'Hi, I’m your OKR Coach. I can assess outcome quality, identify risks, and draft objectives or key results for your active cycle.';
+const INITIAL_MESSAGE = 'Hi, I’m your OKR Coach. I can run a short circular Deep Dive to reveal stakeholder perspectives and derive a reviewable OKR-set specification, Objectives, and Key Results.';
 
 export class ChatController {
     constructor({ getProject, onAction, service = new N8nChatService() }) {
