@@ -48,7 +48,8 @@ test('explicit activity events attribute check-ins and risk resolution to the ac
         activityEvents: [
             { type: 'kr_check_in', actorId: 'user-1', cycleId: 'cycle', ownerId: 'team', objectiveId: 'objective', occurredAt: '2026-08-25T10:00:00Z' },
             { type: 'risk_resolved', actorId: 'user-1', cycleId: 'cycle', ownerId: 'team', objectiveId: 'objective', occurredAt: '2026-08-25T10:01:00Z' },
-            { type: 'deep_dive_completed', actorId: 'user-1', cycleId: 'cycle', ownerId: 'company', occurredAt: '2026-08-24T10:00:00Z' }
+            { type: 'deep_dive_completed', actorId: 'user-1', cycleId: 'cycle', ownerId: 'company', occurredAt: '2026-08-24T10:00:00Z' },
+            { type: 'retrospective_completed', actorId: 'user-1', cycleId: 'cycle', ownerId: 'company', occurredAt: '2026-08-24T10:05:00Z' }
         ],
         objectives: [{ id: 'objective', cycleId: 'cycle', ownerId: 'team', responsible: '', keyResults: [kr('On Track', ['2026-08-25'])] }]
     };
@@ -57,4 +58,5 @@ test('explicit activity events attribute check-ins and risk resolution to the ac
     assert.equal(result.recentCheckIns, 1);
     assert.equal(result.riskResolutions, 1);
     assert.ok(result.badges.some(badge => badge.name === 'Risk navigator'));
+    assert.ok(result.badges.some(badge => badge.name === 'Learning loop'));
 });

@@ -36,6 +36,8 @@ The cockpit uses concise task-oriented navigation. **Alignment** presents strate
 
 **Overview** is the attention-first decision surface for risks, stale evidence, design gaps, and near deadlines; historical snapshots are available inline. Objective and Key Result editing stays in contextual side drawers, while Ctrl/Cmd+K opens the command palette. Momentum uses a bounded workspace activity trail to attribute check-ins, resolved risks, and Deep Dive completion more precisely without exposing individual competition.
 
+**Weekly Focus** turns that activity into a private next-action queue, automatic team practice challenges, a Define → Align → Execute → Review → Learn cycle path, and a team learning feed. In-app notifications and summaries can be configured per member; no email is sent. Guided retrospectives earn private learning recognition, while owners see only aggregate engagement health. Objective and Key Result search opens a unified detail drawer with evidence, activity, and learning notes. Saved Objective views and consolidated filters keep the full hierarchy available without making it the default working surface.
+
 ## Architecture
 
 - `js/app.js` — authentication-aware application controller and event coordination
@@ -45,6 +47,7 @@ The cockpit uses concise task-oriented navigation. **Alignment** presents strate
 - `js/chat-controller.js` — accessible chat interaction and rendering
 - `js/okr-specification.js` — specification normalization and set-to-objective inheritance
 - `js/gamification.js` — normalized private and team momentum calculations
+- `js/engagement.js` — weekly focus, challenges, milestones, notifications, learning, and privacy-safe aggregate analytics
 - `css/` — Eraneos design tokens and responsive component styling
 - `tests/` — contract tests for the assistant integration
 

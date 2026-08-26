@@ -1,21 +1,13 @@
 import { hasOkrSpecification, normalizeOkrSpecification, OKR_CATEGORIES, OKR_COMMITMENTS, OKR_LEVELS, resolveObjectiveSpecification } from './okr-specification.js';
 import { buildPrivateMomentum, buildTeamLevelBoard } from './gamification.js';
+import { buildCycleMilestones, buildEngagementAnalytics, buildLearningFeed, buildNotifications, buildTeamChallenges, buildWeeklyFocus } from './engagement.js';
 
 export class UI {
     constructor() {
         this.appContainer = document.getElementById('app-container');
         this.modalContainer = document.getElementById('modal-container');
         this.modals = {};
-        this.charts = {};
-    }
-
-    destroyCharts() {
-        Object.values(this.charts).forEach(chart => {
-            if (chart) {
-                chart.destroy();
-            }
-        });
-        this.charts = {};
+        this.modalReturnFocus = {};
     }
 
     showToast(message, type = 'success') {
@@ -53,7 +45,18 @@ export class UI {
         return this.modals[id];
     }
     
-    showModal(id) { this._getOrInitModal(id)?.show(); }
+    showModal(id) {
+        const modalElement = document.getElementById(id);
+        if (modalElement && !modalElement.classList.contains('show')) {
+            this.modalReturnFocus[id] = document.activeElement;
+            modalElement.addEventListener('hidden.bs.modal', () => {
+                const target = this.modalReturnFocus[id];
+                if (target?.isConnected) target.focus();
+                delete this.modalReturnFocus[id];
+            }, { once: true });
+        }
+        this._getOrInitModal(id)?.show();
+    }
     hideModal(id) { this._getOrInitModal(id)?.hide(); }
 
     openCommandPalette() {
@@ -80,6 +83,87 @@ export class UI {
         if (!toggle || !items) return;
         toggle.setAttribute('aria-expanded', String(expanded));
         items.hidden = !expanded;
+    }
+
+    renderNotificationCenter(project, user = {}, preferences = {}) {
+        const panel = document.getElementById('notification-panel');
+        const counter = document.getElementById('notification-count');
+        if (!panel || !counter) return;
+        const escape = value => this._escapeHtml(value || '');
+        const enabled = preferences?.inAppNotifications !== false;
+        const notifications = enabled ? buildNotifications(project, user) : [];
+        counter.textContent = String(notifications.length);
+        counter.hidden = notifications.length === 0;
+        panel.innerHTML = `<header><div><p class="eyebrow">In-app only</p><h2>Notifications</h2></div><button type="button" class="btn-close" id="notification-close" aria-label="Close notifications"></button></header>
+            ${preferences?.weeklySummary !== false ? `<section class="notification-summary"><i class="bi bi-calendar-check"></i><div><strong>Weekly summary</strong><p>${notifications.length ? `${notifications.length} useful prompt${notifications.length === 1 ? '' : 's'} for this week.` : 'Your current cycle has no urgent prompts.'}</p></div></section>` : ''}
+            <div class="notification-list">${enabled ? (notifications.length ? notifications.map(item => `<a href="${item.href}" class="notification-item notification-item--${item.tone}"><i class="bi ${item.icon}"></i><span><strong>${escape(item.title)}</strong><small>${escape(item.detail)}</small></span><i class="bi bi-arrow-right"></i></a>`).join('') : '<div class="notification-empty"><i class="bi bi-check2-circle"></i><strong>You are caught up</strong><small>New prompts appear only when a meaningful action is due.</small></div>') : '<div class="notification-empty"><i class="bi bi-bell-slash"></i><strong>Notifications are paused</strong><small>Change your preference in Settings.</small></div>'}</div>
+            <footer><a href="#settings">Notification preferences</a></footer>`;
+    }
+
+    toggleNotificationCenter(force) {
+        const panel = document.getElementById('notification-panel');
+        const trigger = document.getElementById('notification-trigger');
+        if (!panel || !trigger) return;
+        const open = force ?? panel.hidden;
+        panel.hidden = !open;
+        trigger.setAttribute('aria-expanded', String(open));
+        if (open) panel.querySelector('.btn-close')?.focus();
+        else trigger.focus();
+    }
+
+    renderWeeklyFocusView(project, user = {}) {
+        const view = document.getElementById('weekly-focus-view');
+        if (!view) return;
+        const escape = value => this._escapeHtml(value || '');
+        const focus = buildWeeklyFocus(project, user);
+        const challenges = buildTeamChallenges(project);
+        const milestones = buildCycleMilestones(project);
+        const learning = buildLearningFeed(project, 8);
+        if (!focus.cycle) {
+            view.innerHTML = '<section class="purpose-empty"><i class="bi bi-calendar-plus"></i><h2>Start a weekly rhythm</h2><p>Activate a cycle to receive evidence-based focus prompts.</p><a href="#cycles" class="btn btn-primary">Manage cycles</a></section>';
+            return;
+        }
+        const focusIcon = { risk: 'bi-exclamation-triangle', evidence: 'bi-graph-up', deadline: 'bi-calendar-event', design: 'bi-bullseye' };
+        view.innerHTML = `<div class="view-intro"><div><p class="eyebrow">${escape(focus.cycle.name)} · private focus</p><h2>Your useful week</h2><p>${focus.personalized ? 'Prioritized from the Objectives assigned to you.' : 'Workspace signals are shown until an Objective is assigned to you.'}</p></div><span class="view-intro__meta">${focus.summary.urgent} urgent · ${focus.summary.total} total</span></div>
+            <section class="focus-hero"><div><p class="eyebrow">Best next move</p><h3>${escape(focus.nextAction)}</h3></div><a href="#explorer" class="btn btn-primary">Open Objectives</a></section>
+            <div class="engagement-grid"><section class="focus-queue"><header><div><p class="eyebrow">Private action queue</p><h3>Work requiring attention</h3></div></header>${focus.items.length ? focus.items.slice(0, 12).map(item => `<button type="button" class="focus-item open-okr-detail" data-objective-id="${item.objectiveId}" data-kr-id="${item.keyResultId || ''}"><i class="bi ${focusIcon[item.type]}"></i><span><strong>${escape(item.title)}</strong><small>${escape(item.reason)}</small></span><em>${escape(item.action)}</em><i class="bi bi-arrow-right"></i></button>`).join('') : '<div class="focus-clear"><i class="bi bi-check2-circle"></i><strong>No work is being hidden</strong><p>Your evidence, ownership, risks, and deadlines are current.</p></div>'}</section>
+                <section class="challenge-board"><header><p class="eyebrow">Automatic team challenges</p><h3>Improve together</h3><p>Shared practice—not individual competition.</p></header>${challenges.map(challenge => `<article><div><strong>${escape(challenge.title)}</strong><small>${escape(challenge.detail)}</small></div><span>${challenge.current}/${challenge.target}</span><div class="challenge-progress"><i style="width:${challenge.percent}%"></i></div>${challenge.complete ? '<b><i class="bi bi-check2"></i> Complete</b>' : ''}</article>`).join('')}</section></div>
+            <section class="cycle-path"><header><p class="eyebrow">Cycle milestones</p><h3>Define → align → execute → review → learn</h3></header><div>${milestones.map((milestone, index) => `<article class="${milestone.complete ? 'is-complete' : ''} ${milestone.current ? 'is-current' : ''}"><span>${milestone.complete ? '<i class="bi bi-check2"></i>' : index + 1}</span><strong>${milestone.title}</strong><small>${milestone.detail}</small></article>`).join('')}</div></section>
+            <section class="learning-feed"><header><div><p class="eyebrow">Team learning feed</p><h3>Useful progress worth sharing</h3></div><a href="#cycles">Add retrospective</a></header>${learning.length ? learning.map(item => `<article><i class="bi ${item.icon}"></i><span><strong>${escape(item.title)}</strong><small>${escape(item.ownerName)}${item.objectiveTitle ? ` · ${escape(item.objectiveTitle)}` : ''}</small></span><time>${item.occurredAt ? item.occurredAt.toLocaleDateString() : ''}</time></article>`).join('') : '<div class="focus-clear"><i class="bi bi-journal-plus"></i><strong>Learning appears after meaningful outcomes</strong><p>Resolve a risk, complete context, reach an Objective, comment, or capture a retrospective.</p></div>'}</section>`;
+    }
+
+    openOkrDetail(project, objectiveId, keyResultId = '', userRole = 'viewer') {
+        const objective = (project.objectives || []).find(item => item.id === objectiveId);
+        const keyResult = objective?.keyResults?.find(item => item.id === keyResultId);
+        const target = document.getElementById('okr-detail-content');
+        if (!objective || !target) return;
+        const escape = value => this._escapeHtml(value || '');
+        const canEdit = ['owner', 'editor'].includes(userRole);
+        const activeCycle = project.cycles?.find(cycle => cycle.id === objective.cycleId);
+        const specification = resolveObjectiveSpecification(activeCycle?.okrSpecification, objective.specification);
+        const dependencyNames = (objective.dependsOn || []).map(id => project.objectives?.find(item => item.id === id)?.title).filter(Boolean);
+        const activeEvents = (project.activityEvents || []).filter(event => event.objectiveId === objective.id && (!keyResult || !event.keyResultId || event.keyResultId === keyResult.id)).sort((a, b) => String(b.occurredAt).localeCompare(String(a.occurredAt))).slice(0, 12);
+        const eventLabels = { kr_check_in: 'Evidence updated', risk_resolved: 'Risk moved back on track', objective_created: 'Objective created', key_result_created: 'Key Result created', objective_completed: 'Objective reached target', comment_added: 'Learning note added' };
+        const comments = objective.comments || [];
+        target.dataset.objectiveId = objective.id;
+        target.innerHTML = `<header class="detail-hero"><div><p class="eyebrow">${keyResult ? 'Key Result' : 'Objective'} detail</p><h2>${escape(keyResult?.title || objective.title)}</h2><p>${escape(objective.responsible || 'No responsible person')} · ${Math.round(keyResult?.progress ?? objective.progress ?? 0)}% progress</p></div>${canEdit ? `<button type="button" class="btn btn-outline-primary ${keyResult ? 'detail-edit-kr' : 'detail-edit-objective'}" data-objective-id="${objective.id}" data-kr-id="${keyResult?.id || ''}">Edit</button>` : ''}</header>
+            <nav class="detail-facts" aria-label="Outcome summary"><span><small>Health</small><strong>${escape(keyResult?.confidence || this._objectiveHealth(objective))}</strong></span><span><small>Owner</small><strong>${escape(this._ownerName(project, objective.ownerId))}</strong></span><span><small>Due</small><strong>${escape(objective.endDate || 'Not set')}</strong></span><span><small>Evidence</small><strong>${keyResult ? `${keyResult.currentValue} / ${keyResult.targetValue}` : `${objective.keyResults?.length || 0} KRs`}</strong></span></nav>
+            <section class="detail-section"><h3>Context and measurement</h3><p>${escape(keyResult?.notes || objective.notes || 'No supporting context has been captured yet.')}</p></section>
+            <section class="detail-section"><h3>Classification and dependencies</h3><div class="detail-chips"><span>${escape(specification.category || 'Category not inferred')}</span><span>${escape(specification.level || 'Level not inferred')}</span><span>${escape(specification.commitment || 'Commitment not inferred')}</span></div><p>${dependencyNames.length ? `Depends on: ${escape(dependencyNames.join(' · '))}` : 'No upstream dependencies recorded.'}</p></section>
+            ${!keyResult ? `<section class="detail-section"><h3>Key Results</h3><div class="detail-kr-list">${(objective.keyResults || []).length ? objective.keyResults.map(item => `<button type="button" class="open-okr-detail" data-objective-id="${objective.id}" data-kr-id="${item.id}"><span><strong>${escape(item.title)}</strong><small>${escape(item.confidence || 'On Track')}</small></span><b>${Math.round(item.progress || 0)}%</b></button>`).join('') : '<p class="empty-copy">No Key Results defined.</p>'}</div></section>` : ''}
+            <section class="detail-section"><h3>Activity</h3><ol class="detail-activity">${activeEvents.length ? activeEvents.map(event => `<li><i></i><span><strong>${escape(eventLabels[event.type] || 'Outcome updated')}</strong><small>${escape(new Date(event.occurredAt).toLocaleString())}</small></span></li>`).join('') : '<li><span class="empty-copy">No activity recorded yet.</span></li>'}</ol></section>
+            <section class="detail-section"><h3>Learning notes</h3><div class="detail-comments">${comments.length ? comments.map(comment => `<article><p>${escape(comment.text)}</p><small>${escape(new Date(comment.createdAt).toLocaleString())}</small></article>`).join('') : '<p class="empty-copy">Share a decision, assumption, or reusable lesson.</p>'}</div>${canEdit ? `<form id="objective-comment-form"><input type="hidden" id="comment-objective-id" value="${objective.id}"><label class="form-label" for="objective-comment-text">Add a learning note</label><div class="input-group"><input class="form-control" id="objective-comment-text" maxlength="500" required><button class="btn btn-primary" type="submit">Share</button></div></form>` : ''}</section>`;
+        this.showModal('okrDetailModal');
+    }
+
+    _ownerName(project, ownerId) {
+        if (ownerId === 'company') return project.companyName || project.name;
+        return project.teams?.find(team => team.id === ownerId)?.name || 'Unassigned';
+    }
+
+    _objectiveHealth(objective) {
+        const confidences = (objective.keyResults || []).map(item => item.confidence);
+        return confidences.includes('Off Track') ? 'Off Track' : confidences.includes('At Risk') ? 'At Risk' : 'On Track';
     }
 
     _escapeHtml(value) {
@@ -261,10 +345,13 @@ export class UI {
             </div>`;
     }
 
-    renderMainLayout(project, userRole) {
+    renderMainLayout(project, userRole, user = {}) {
         const canEdit = userRole === 'owner' || userRole === 'editor';
         const isOwner = userRole === 'owner';
+        this.modals = {};
+        this.modalReturnFocus = {};
         this.appContainer.innerHTML = `
+            <a class="skip-link" href="#main-workspace">Skip to main content</a>
             <div class="container-fluid g-0" id="app-shell">
                 <div class="row g-0 vh-100">
                     <aside id="sidebar-col" class="col-auto">
@@ -277,6 +364,7 @@ export class UI {
                             <ul class="nav nav-pills flex-column mb-auto">
                                 <li><span class="nav-section-label">Focus</span></li>
                                 <li class="nav-item"><a href="#dashboard" class="nav-link text-white" data-view="dashboard-view"><i class="bi bi-grid-1x2-fill me-2"></i> Overview</a></li>
+                                <li class="nav-item"><a href="#weekly-focus" class="nav-link text-white" data-view="weekly-focus-view"><i class="bi bi-check2-square me-2"></i> Weekly Focus</a></li>
                                 <li class="nav-item"><a href="#explorer" class="nav-link text-white" data-view="explorer-view"><i class="bi bi-bullseye me-2"></i> Objectives</a></li>
                                 <li class="nav-item"><a href="#momentum" class="nav-link text-white" data-view="momentum-view"><i class="bi bi-lightning-charge-fill me-2"></i> Momentum</a></li>
                                 <li class="nav-item"><a href="#cascade" class="nav-link text-white" data-view="cascade-view"><i class="bi bi-diagram-3-fill me-2"></i> Alignment</a></li>
@@ -307,6 +395,7 @@ export class UI {
                                     <span class="navbar-brand mb-0 h1" id="view-title"></span>
                                 </div>
                                 <button type="button" class="command-trigger" id="command-palette-trigger" aria-label="Open command palette"><i class="bi bi-search"></i><span>Search or jump to…</span><kbd>Ctrl K</kbd></button>
+                                <button type="button" class="notification-trigger" id="notification-trigger" aria-label="Open notifications" aria-expanded="false"><i class="bi bi-bell"></i><span id="notification-count" hidden>0</span></button>
                                 <div class="d-flex align-items-center gap-2" id="nav-controls">
                                     <input class="form-control" type="search" id="search-input" placeholder="Search objectives…" aria-label="Search objectives" style="width: 250px;">
                                     <div class="dropdown">
@@ -314,12 +403,13 @@ export class UI {
                                         <ul class="dropdown-menu dropdown-menu-end" id="cycle-selector-list"></ul>
                                     </div>
                                     ${canEdit ? `<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#objectiveModal" id="add-objective-btn"><i class="bi bi-plus-lg"></i> New objective</button>` : ''}
-                                    <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#shareProjectModal" id="share-project-btn" title="Share workspace" aria-label="Share workspace"><i class="bi bi-people"></i><span class="share-label">Share</span></button>
+                                    <div class="dropdown"><button class="btn btn-outline-info" type="button" data-bs-toggle="dropdown" aria-label="Workspace actions"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#shareProjectModal" id="share-project-btn"><i class="bi bi-people me-2"></i>Share workspace</button></li><li><button class="dropdown-item" type="button" id="topbar-export-project"><i class="bi bi-download me-2"></i>Export backup</button></li></ul></div>
                                 </div>
                             </div>
                         </nav>
-                        <div class="p-4 content-scroll-area">
+                        <main class="p-4 content-scroll-area" id="main-workspace" tabindex="-1">
                             <div id="dashboard-view" class="view-container" style="display:none;"></div>
+                            <div id="weekly-focus-view" class="view-container" style="display:none;"></div>
                             <div id="momentum-view" class="view-container" style="display:none;"></div>
                             <div id="deep-dive-view" class="view-container" style="display:none;"></div>
                             <div id="explorer-view" class="view-container" style="display:none;"></div>
@@ -329,7 +419,7 @@ export class UI {
                             <div id="risk-board-view" class="view-container" style="display:none;"></div>
                             <div id="cycles-view" class="view-container" style="display:none;"></div>
                             <div id="settings-view" class="view-container" style="display:none;"></div>
-                        </div>
+                        </main>
                     </div>
                 </div>
                 <button type="button" class="chat-launcher" id="okr-chat-launcher" aria-controls="okr-chat-panel" aria-expanded="false"><i class="bi bi-stars"></i><span>Ask OKR Coach</span></button>
@@ -344,8 +434,10 @@ export class UI {
                         <p class="chat-panel__privacy">Relevant project context is shared with the configured Eraneos n8n workflow.</p>
                     </form>
                 </section>
+                <aside class="notification-panel" id="notification-panel" aria-label="In-app notifications" aria-live="polite" hidden></aside>
             </div>`;
-        this.modalContainer.innerHTML = `${this.renderObjectiveModal()}${this.renderKeyResultModal()}${this.renderOkrSpecificationModal()}${this.renderShareProjectModal()}${this.renderCommandPaletteModal(canEdit, isOwner)}`;
+        this.modalContainer.innerHTML = `${this.renderObjectiveModal()}${this.renderKeyResultModal()}${this.renderOkrSpecificationModal()}${this.renderShareProjectModal()}${this.renderCommandPaletteModal(canEdit, isOwner, project)}${this.renderOkrDetailDrawer()}`;
+        this.renderNotificationCenter(project, user, project.memberPreferences?.[user.uid]);
     }
 
     populateShareModal(members, isOwner) {
@@ -388,13 +480,12 @@ export class UI {
     }
 
     showView(viewId) {
-        this.destroyCharts();
         document.querySelectorAll('.view-container').forEach(v => v.style.display = 'none');
-        document.querySelectorAll('#sidebar .nav-link').forEach(l => l.classList.remove('active'));
+        document.querySelectorAll('#sidebar .nav-link').forEach(link => { link.classList.remove('active'); link.removeAttribute('aria-current'); });
         const viewEl = document.getElementById(viewId);
         if (viewEl) viewEl.style.display = 'block';
         const linkEl = document.querySelector(`[data-view="${viewId}"]`);
-        if (linkEl) linkEl.classList.add('active');
+        if (linkEl) { linkEl.classList.add('active'); linkEl.setAttribute('aria-current', 'page'); }
         const isManageView = ['cycles-view', 'settings-view'].includes(viewId);
         this.setManageNavigation(isManageView || localStorage.getItem('okrManageExpanded') === 'true');
         const navControls = document.getElementById('nav-controls');
@@ -416,6 +507,7 @@ export class UI {
         if (viewTitle) {
             const titles = {
                 'dashboard-view': 'Overview',
+                'weekly-focus-view': 'Weekly Focus',
                 'momentum-view': 'Momentum',
                 'deep-dive-view': 'Deep Dive',
                 'explorer-view': 'Objectives',
@@ -649,7 +741,8 @@ export class UI {
                 items.push({ tone: 'focus', icon: 'bi-person-exclamation', title: objective.title, detail: 'No responsible person assigned', href: '#explorer' });
             }
             keyResults.forEach(keyResult => {
-                if (['At Risk', 'Off Track'].includes(keyResult.confidence)) {
+                const exposed = ['At Risk', 'Off Track'].includes(keyResult.confidence);
+                if (exposed) {
                     counters.risks += 1;
                     items.push({ tone: keyResult.confidence === 'Off Track' ? 'critical' : 'warning', icon: 'bi-exclamation-triangle', title: keyResult.title, detail: `${keyResult.confidence} · ${objective.title}`, href: '#risk-board' });
                 }
@@ -658,7 +751,7 @@ export class UI {
                 const age = latestDate && !Number.isNaN(latestDate.getTime()) ? Math.floor((now - latestDate) / 86400000) : Infinity;
                 if (age > 14) {
                     counters.stale += 1;
-                    items.push({ tone: 'stale', icon: 'bi-clock-history', title: keyResult.title, detail: latestDate ? `No evidence update for ${age} days` : 'No evidence update recorded', href: '#explorer' });
+                    if (!exposed) items.push({ tone: 'stale', icon: 'bi-clock-history', title: keyResult.title, detail: latestDate ? `No evidence update for ${age} days` : 'No evidence update recorded', href: '#explorer' });
                 }
             });
             if (objective.endDate) {
@@ -681,19 +774,16 @@ export class UI {
     renderDashboardView(project, filterOwnerId = 'all', filterResponsible = 'all') {
         const view = document.getElementById('dashboard-view');
         if (!view) return;
-        this.destroyCharts();
         const activeCycle = project.cycles.find(c => c.status === 'Active');
         const owners = [{ id: 'company', name: project.companyName }, ...project.teams];
         const ownerFilterOptionsHtml = owners.map(owner => `<option value="${owner.id}" ${filterOwnerId === owner.id ? 'selected' : ''}>${owner.name}</option>`).join('');
         let contentHtml;
         let responsibleFilterOptionsHtml = '';
-        let objectivesInCycleForCharts = [];
         if (!activeCycle) {
             contentHtml = '<div class="alert alert-warning">No active cycle found.</div>';
         } else {
             let objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
             objectivesInCycle.forEach(obj => obj.progress = this._calculateObjectiveProgress(obj)); // Ensure progress is up-to-date
-            objectivesInCycleForCharts = objectivesInCycle;
             const responsibles = [...new Set(objectivesInCycle.map(o => o.responsible).filter(Boolean))];
             responsibleFilterOptionsHtml = responsibles.map(r => `<option value="${r}" ${filterResponsible === r ? 'selected' : ''}>${r}</option>`).join('');
             if (filterOwnerId !== 'all') objectivesInCycle = objectivesInCycle.filter(o => o.ownerId === filterOwnerId);
@@ -713,6 +803,17 @@ export class UI {
                 const onTrackPercent = krHealth.Total > 0 ? (krHealth['On Track'] / krHealth.Total * 100) : 0;
                 const atRiskPercent = krHealth.Total > 0 ? (krHealth['At Risk'] / krHealth.Total * 100) : 0;
                 const offTrackPercent = krHealth.Total > 0 ? (krHealth['Off Track'] / krHealth.Total * 100) : 0;
+                const now = new Date();
+                const historyAge = keyResult => {
+                    const latest = [...(keyResult.history || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+                    return latest?.date ? Math.floor((now - new Date(`${latest.date}T12:00:00`)) / 86400000) : Infinity;
+                };
+                const freshThisWeek = allKrs.filter(keyResult => historyAge(keyResult) <= 7).length;
+                const staleEvidence = allKrs.filter(keyResult => historyAge(keyResult) > 14).length;
+                const resolvedThisMonth = (project.activityEvents || []).filter(event => {
+                    const age = (now - new Date(event.occurredAt)) / 86400000;
+                    return event.type === 'risk_resolved' && event.cycleId === activeCycle.id && age >= 0 && age <= 30;
+                }).length;
                 const progressByOwner = owners.map(owner => {
                     const ownerObjectives = project.objectives.filter(o => o.cycleId === activeCycle.id && o.ownerId === owner.id);
                     if (ownerObjectives.length === 0) return null;
@@ -733,9 +834,7 @@ export class UI {
                         <div class="${(filterOwnerId === 'all' && filterResponsible === 'all') ? 'col-xl-6' : 'col-12'}">
                             <div class="card dashboard-card h-100"><div class="card-body"><h5 class="card-title text-muted">Key Result Health (${krHealth.Total} total)</h5><div class="d-flex justify-content-around align-items-center text-center mt-4"><div class="health-stat"><div class="stat-value text-success">${krHealth['On Track']}</div><div class="stat-label">On Track</div></div><div class="health-stat"><div class="stat-value text-warning">${krHealth['At Risk']}</div><div class="stat-label">At Risk</div></div><div class="health-stat"><div class="stat-value text-danger">${krHealth['Off Track']}</div><div class="stat-label">Off Track</div></div></div><div class="progress mt-4" style="height: 1.5rem; font-size: 0.8rem;"><div class="progress-bar bg-success" role="progressbar" style="width: ${onTrackPercent}%" title="On Track">${Math.round(onTrackPercent)}%</div><div class="progress-bar bg-warning" role="progressbar" style="width: ${atRiskPercent}%" title="At Risk">${Math.round(atRiskPercent)}%</div><div class="progress-bar bg-danger" role="progressbar" style="width: ${offTrackPercent}%" title="Off Track">${Math.round(offTrackPercent)}%</div></div></div></div>
                         </div>
-                        <div class="col-xl-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">KR Burndown</h5><canvas id="burndown-chart"></canvas></div></div></div>
-                        <div class="col-xl-6"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Progress Velocity (WoW)</h5><canvas id="velocity-chart"></canvas></div></div></div>
-                        <div class="col-12"><div class="card dashboard-card"><div class="card-body"><h5 class="card-title text-muted">Health Trend (Last 30 Days)</h5><canvas id="health-trend-chart"></canvas></div></div></div>
+                        <div class="col-12"><section class="decision-summary" aria-labelledby="decision-summary-title"><header><p class="eyebrow">Evidence and movement</p><h2 id="decision-summary-title">What changed?</h2></header><div><article><strong>${freshThisWeek}/${krHealth.Total}</strong><span>KRs with evidence this week</span><a href="#weekly-focus">Complete the weekly rhythm</a></article><article><strong>${staleEvidence}</strong><span>KRs stale for more than 14 days</span><a href="#explorer">Review missing evidence</a></article><article><strong>${resolvedThisMonth}</strong><span>Risks moved back on track this month</span><a href="#weekly-focus">See team learning</a></article></div></section></div>
                     </div>`;
             }
         }
@@ -744,11 +843,7 @@ export class UI {
         const attentionFeed = activeCycle ? this._renderAttentionFeed(project, activeCycle) : '';
         const historicSnapshot = activeCycle ? `<details class="cockpit-disclosure"><summary><span><strong>Historical snapshot</strong><small>Reconstruct attainment from saved Key Result evidence.</small></span><i class="bi bi-chevron-down"></i></summary><div class="cockpit-disclosure__body"><label for="report-date-input" class="form-label">Snapshot date</label><input type="date" id="report-date-input" class="form-control"><div id="report-content" class="mt-3"><p class="empty-copy mb-0">Choose a date to reconstruct attainment from Key Result history.</p></div></div></details>` : '';
         view.innerHTML = `${attentionFeed}<div class="dashboard-toolbar"><span>Scope the supporting metrics</span><div><select id="dashboard-filter-owner" class="form-select" aria-label="Filter by owner"><option value="all" ${filterOwnerId === 'all' ? 'selected' : ''}>All owners</option>${ownerFilterOptionsHtml}</select><select id="dashboard-filter-responsible" class="form-select" aria-label="Filter by responsible person"><option value="all" ${filterResponsible === 'all' ? 'selected' : ''}>All responsible people</option>${responsibleFilterOptionsHtml}</select></div></div>${deepDiveBanner}${contentHtml}${historicSnapshot}`;
-        if (objectivesInCycleForCharts && objectivesInCycleForCharts.length > 0) {
-            this._renderHealthTrendChart(objectivesInCycleForCharts);
-            this._renderVelocityChart(objectivesInCycleForCharts);
-            this._renderBurndownChart(project);
-        }
+        // The Overview intentionally favors decision summaries over decorative charts.
     }
 
     renderDeepDiveView(project, userRole) {
@@ -1054,7 +1149,7 @@ export class UI {
         cycleSelectorList.innerHTML = project.cycles.map(cycle => `<li><a class="dropdown-item ${cycle.id === activeCycle?.id ? 'active' : ''}" href="#" data-cycle-id="${cycle.id}">${cycle.name}</a></li>`).join('');
     }
 
-    renderExplorerView(project, searchTerm = '', filterResponsible = 'all', userRole) {
+    renderExplorerView(project, searchTerm = '', filterResponsible = 'all', userRole, user = {}, savedView = 'all') {
         const view = document.getElementById('explorer-view');
         if (!view) return;
         const activeCycle = project.cycles.find(c => c.status === 'Active');
@@ -1064,6 +1159,19 @@ export class UI {
         const responsibleFilterOptionsHtml = responsibles.map(r => `<option value="${r}" ${filterResponsible === r ? 'selected' : ''}>${r}</option>`).join('');
         let objectivesToRender = objectivesInCycle;
         if (filterResponsible !== 'all') objectivesToRender = objectivesToRender.filter(o => o.responsible === filterResponsible);
+        const aliases = [user.email, user.displayName].filter(Boolean).map(value => value.toLocaleLowerCase());
+        const latestAge = keyResult => {
+            const latest = [...(keyResult.history || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+            return latest?.date ? Math.floor((Date.now() - new Date(`${latest.date}T12:00:00`).getTime()) / 86400000) : Infinity;
+        };
+        if (savedView === 'mine') objectivesToRender = objectivesToRender.filter(objective => aliases.some(alias => String(objective.responsible || '').toLocaleLowerCase().includes(alias)));
+        if (savedView === 'needs-evidence') objectivesToRender = objectivesToRender.filter(objective => (objective.keyResults || []).some(keyResult => latestAge(keyResult) > 14));
+        if (savedView === 'risks') objectivesToRender = objectivesToRender.filter(objective => (objective.keyResults || []).some(keyResult => ['At Risk', 'Off Track'].includes(keyResult.confidence)));
+        if (savedView === 'ending') objectivesToRender = objectivesToRender.filter(objective => {
+            if (!objective.endDate) return false;
+            const daysLeft = Math.ceil((new Date(`${objective.endDate}T12:00:00`).getTime() - Date.now()) / 86400000);
+            return daysLeft >= 0 && daysLeft <= 14;
+        });
         if (searchTerm) {
             const lowercasedTerm = searchTerm.toLowerCase();
             objectivesToRender = objectivesToRender.filter(o => o.title.toLowerCase().includes(lowercasedTerm) || (o.notes && o.notes.toLowerCase().includes(lowercasedTerm)) || o.keyResults.some(kr => kr.title.toLowerCase().includes(lowercasedTerm)));
@@ -1074,9 +1182,10 @@ export class UI {
             const teamObjectives = objectivesToRender.filter(o => o.ownerId === team.id);
             html += this.renderObjectiveGroup(team.name, teamObjectives, project, objectivesInCycle, searchTerm, userRole);
         });
-        const filterHtml = `<div class="d-flex justify-content-end mb-3"><div class="col-md-4"><label for="explorer-filter-responsible" class="form-label">Filter by Responsible</label><select id="explorer-filter-responsible" class="form-select"><option value="all">All</option>${responsibleFilterOptionsHtml}</select></div></div>`;
-        if (!html && (searchTerm || filterResponsible !== 'all')) view.innerHTML = filterHtml + `<div class="text-center p-5"><h3>No results.</h3></div>`; 
-        else if (!html) view.innerHTML = filterHtml + `<div class="text-center p-5 bg-body-secondary rounded"><h3>No Objectives.</h3>${(userRole !== 'viewer') ? '<p>Click "Add Objective" to begin.</p>' : ''}</div>`; 
+        const savedViews = [['all','All Objectives'],['mine','My OKRs'],['needs-evidence','Needs evidence'],['risks','At risk'],['ending','Ending soon']];
+        const filterHtml = `<div class="explorer-toolbar"><div><label class="visually-hidden" for="explorer-saved-view">Saved view</label><select id="explorer-saved-view" class="form-select">${savedViews.map(([value,label]) => `<option value="${value}" ${savedView === value ? 'selected' : ''}>${label}</option>`).join('')}</select></div><details class="compact-filter"><summary><i class="bi bi-funnel"></i> Filters${filterResponsible !== 'all' ? '<span>1</span>' : ''}</summary><div><label for="explorer-filter-responsible" class="form-label">Responsible</label><select id="explorer-filter-responsible" class="form-select"><option value="all">All people</option>${responsibleFilterOptionsHtml}</select></div></details></div>`;
+        if (!html && (searchTerm || filterResponsible !== 'all' || savedView !== 'all')) view.innerHTML = filterHtml + `<section class="purpose-empty"><i class="bi bi-search"></i><h2>No matching outcomes</h2><p>Try another saved view or clear the active filter.</p><button type="button" class="btn btn-outline-primary" id="clear-explorer-filters">Show all Objectives</button></section>`;
+        else if (!html) view.innerHTML = filterHtml + `<section class="purpose-empty"><i class="bi bi-bullseye"></i><h2>Define the first outcome</h2><p>Objectives turn the active cycle into a small set of measurable priorities.</p>${(userRole !== 'viewer') ? '<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#objectiveModal">Create an Objective</button>' : ''}</section>`;
         else view.innerHTML = filterHtml + html; 
     }
 
@@ -1106,28 +1215,23 @@ export class UI {
         const dependsOnBadge = dependsOnCount > 0 ? `<span class="badge bg-secondary ms-2" data-bs-toggle="tooltip" data-bs-html="true" title="${dependsOnTooltip}"><i class="bi bi-arrow-down"></i> ${dependsOnCount}</span>` : '';
         const blocksBadge = blocksCount > 0 ? `<span class="badge bg-warning text-dark ms-2" data-bs-toggle="tooltip" data-bs-html="true" title="${blocksTooltip}"><i class="bi bi-arrow-up"></i> ${blocksCount}</span>` : '';
         const responsibleHtml = objective.responsible ? `<span class="responsible-person ms-2"><i class="bi bi-person-fill"></i> ${objective.responsible}</span>` : '';
-        const editControls = canEdit ? `
-            <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#objectiveModal" data-objective-id="${objective.id}"><i class="bi bi-pencil"></i></button>
-                <button class="btn btn-sm btn-outline-danger delete-obj-btn" data-objective-id="${objective.id}"><i class="bi bi-trash"></i></button>
-            </div>` : '';
+        const health = this._objectiveHealth(objective);
+        const editControls = canEdit ? `<div class="dropdown"><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-label="More actions for ${this._escapeHtml(objective.title)}"><i class="bi bi-three-dots"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#objectiveModal" data-objective-id="${objective.id}"><i class="bi bi-pencil me-2"></i>Edit Objective</button></li><li><button class="dropdown-item" data-bs-toggle="modal" data-bs-target="#keyResultModal" data-objective-id="${objective.id}"><i class="bi bi-plus-circle me-2"></i>Add Key Result</button></li><li><hr class="dropdown-divider"></li><li><button class="dropdown-item text-danger delete-obj-btn" data-objective-id="${objective.id}"><i class="bi bi-trash me-2"></i>Delete Objective</button></li></ul></div>` : '';
 
         return `
             <div class="card okr-card" id="${objective.id}" draggable="${canEdit}">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <div><h5 class="mb-0 d-inline">${highlightedTitle}</h5>${dependsOnBadge}${blocksBadge}${responsibleHtml}</div>
+                <div class="card-header okr-card__header">
+                    <button type="button" class="okr-card__title open-okr-detail" data-objective-id="${objective.id}"><span class="okr-card__health okr-card__health--${health.toLocaleLowerCase().replaceAll(' ','-')}">${health}</span><h3>${highlightedTitle}</h3><small>${responsibleHtml || '<span class="responsible-person">No responsible person</span>'}</small></button>
                     ${editControls}
                 </div>
                 <div class="card-body">
-                    <div class="progress mb-3" style="height: 1.5rem;">
-                        <div class="progress-bar" role="progressbar" style="width: ${objective.progress}%;" aria-valuenow="${objective.progress}">
-                            <span class="progress-bar-label">${objective.progress}%</span>
+                    <div class="okr-card__progress"><span>Objective progress</span><strong>${objective.progress}%</strong></div><div class="progress mb-3" style="height: .45rem;">
+                        <div class="progress-bar" role="progressbar" style="width: ${objective.progress}%;" aria-valuenow="${objective.progress}" aria-valuemin="0" aria-valuemax="100" aria-label="Objective progress">
                         </div>
                     </div>
-                    ${notesHtml}
+                    <div class="okr-card__signals">${dependsOnBadge}${blocksBadge}<span>${objective.keyResults?.length || 0} Key Results</span>${objective.endDate ? `<span>Due ${objective.endDate}</span>` : ''}</div>
                     <div class="key-results-list">${objective.keyResults.map(kr => this.renderKeyResult(kr, objective.id, searchTerm, userRole)).join('')}</div>
                 </div>
-                ${canEdit ? `<div class="card-footer text-end"><button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#keyResultModal" data-objective-id="${objective.id}"><i class="bi bi-plus-circle"></i> Add Key Result</button></div>` : ''}
             </div>`;
     }
 
@@ -1140,19 +1244,15 @@ export class UI {
         const badgeColor = confidenceColors[confidence];
         const sparklineHtml = this._createSparklineSVG(kr.history);
         const notesIcon = (kr.notes && kr.notes.trim() !== '') ? `<i class="bi bi-sticky text-muted ms-2" data-bs-toggle="tooltip" title="${kr.notes}"></i>` : '';
-        const editControls = canEdit ? `
-            <div class="kr-actions">
-                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#keyResultModal" data-objective-id="${objectiveId}" data-kr-id="${kr.id}"><i class="bi bi-pencil"></i></button>
-                <button class="btn btn-sm btn-outline-danger delete-kr-btn" data-objective-id="${objectiveId}" data-kr-id="${kr.id}"><i class="bi bi-trash"></i></button>
-            </div>` : '';
+        const editControls = canEdit ? `<button class="btn btn-sm btn-link text-muted" data-bs-toggle="modal" data-bs-target="#keyResultModal" data-objective-id="${objectiveId}" data-kr-id="${kr.id}" aria-label="Edit ${this._escapeHtml(kr.title)}"><i class="bi bi-pencil"></i></button>` : '';
 
         return `
             <div class="kr-item">
-                <div class="kr-title"><span class="badge ${badgeColor} me-2">${confidence}</span>${highlightedKrTitle}${notesIcon}</div>
+                <button type="button" class="kr-title open-okr-detail" data-objective-id="${objectiveId}" data-kr-id="${kr.id}"><span class="badge ${badgeColor} me-2">${confidence}</span><span>${highlightedKrTitle}${notesIcon}</span></button>
                 <div class="kr-progress-container">
                     ${sparklineHtml}
                     <small class="text-muted d-flex justify-content-between"><span>${kr.currentValue}</span> <span>of ${kr.targetValue}</span></small>
-                    <div class="progress" style="--bs-progress-height: 0.75rem;"><div class="progress-bar bg-info" role="progressbar" style="width: ${progress}%;"></div></div>
+                    <div class="progress" style="--bs-progress-height: 0.75rem;"><div class="progress-bar bg-info" role="progressbar" style="width: ${progress}%;" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100" aria-label="Key Result progress"></div></div>
                 </div>
                 ${editControls}
             </div>`;
@@ -1162,6 +1262,9 @@ export class UI {
         const canEdit = userRole === 'owner' || userRole === 'editor';
         const view = document.getElementById('cycles-view');
         if (!view) return;
+        const activeCycle = project.cycles.find(cycle => cycle.status === 'Active');
+        const retrospective = activeCycle?.retrospective || {};
+        const escape = value => this._escapeHtml(value || '');
         view.innerHTML = `
             <div class="row g-4">
                 ${canEdit ? `<div class="col-md-5">
@@ -1170,6 +1273,7 @@ export class UI {
                 <div class="${canEdit ? 'col-md-7' : 'col-12'}">
                     <div class="card"><div class="card-header"><h4>Existing Cycles</h4></div><div class="card-body"><ul class="list-group" id="cycle-list">${project.cycles.length > 0 ? project.cycles.map(c => this.renderCycleListItem(c, project.cycles.length, canEdit)).join('') : '<li class="list-group-item">No cycles.</li>'}</ul></div></div>
                 </div>
+                ${activeCycle ? `<div class="col-12"><section class="card retrospective-card"><div class="card-body p-4"><div class="view-intro"><div><p class="eyebrow">Review → learn</p><h2>Guided retrospective</h2><p>Capture decisions and reusable lessons—not a performance score.</p></div>${retrospective.completedAt ? '<span class="retrospective-earned"><i class="bi bi-journal-check"></i> Learning loop earned</span>' : ''}</div>${canEdit ? `<form id="retrospective-form"><input type="hidden" id="retrospective-cycle-id" value="${activeCycle.id}"><div class="mb-3"><label class="form-label" for="retrospective-summary">What changed because of this cycle?</label><textarea class="form-control" id="retrospective-summary" rows="3" required placeholder="Outcome, decision, or invalidated assumption…">${escape(retrospective.summary)}</textarea></div><div class="mb-3"><label class="form-label" for="retrospective-lessons">What should the next cycle reuse?</label><textarea class="form-control" id="retrospective-lessons" rows="5" placeholder="One lesson per line">${escape((retrospective.lessons || []).join('\n'))}</textarea></div><button class="btn btn-primary" type="submit">${retrospective.completedAt ? 'Update learning' : 'Complete learning loop'}</button></form>` : `<p>${escape(retrospective.summary || 'No retrospective has been captured yet.')}</p>`}</div></section></div>` : ''}
             </div>`;
     }
     
@@ -1189,12 +1293,13 @@ export class UI {
             </li>`;
     }
 
-    renderSettingsView(project) {
+    renderSettingsView(project, preferences = {}) {
         const view = document.getElementById('settings-view');
         if (!view) return;
     
         const mission = project.foundation.mission || '';
         const vision = project.foundation.vision || '';
+        const analytics = buildEngagementAnalytics(project);
     
         const teamsHtml = project.teams.map(team => `
             <li class="list-group-item d-flex justify-content-between align-items-center" data-team-id="${team.id}">
@@ -1257,6 +1362,8 @@ export class UI {
                         </div>
                     </div>
                 </div>
+                <div class="col-lg-6"><div class="card h-100"><div class="card-header"><h4><i class="bi bi-bell me-2"></i>In-app engagement</h4></div><div class="card-body"><p class="text-muted small">These preferences affect only your cockpit experience. No email is sent.</p><form id="engagement-preferences-form"><div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="preference-notifications" ${preferences.inAppNotifications !== false ? 'checked' : ''}><label class="form-check-label" for="preference-notifications">Useful action notifications</label></div><div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="preference-weekly-summary" ${preferences.weeklySummary !== false ? 'checked' : ''}><label class="form-check-label" for="preference-weekly-summary">Weekly in-app summary</label></div><div class="form-check form-switch mb-4"><input class="form-check-input" type="checkbox" id="preference-celebrations" ${preferences.celebrations !== false ? 'checked' : ''}><label class="form-check-label" for="preference-celebrations">Subtle milestone celebrations</label></div><button class="btn btn-primary" type="submit">Save preferences</button></form></div></div></div>
+                <div class="col-lg-6"><div class="card h-100"><div class="card-header"><h4><i class="bi bi-activity me-2"></i>Engagement health</h4></div><div class="card-body"><p class="text-muted small">Privacy-safe cycle aggregates. No individual ranking or session-time tracking.</p><div class="analytics-grid"><div><strong>${analytics.checkIns}</strong><span>Evidence updates</span></div><div><strong>${analytics.resolvedRisks}</strong><span>Risks resolved</span></div><div><strong>${analytics.staleKeyResults}</strong><span>Stale KRs</span></div><div><strong>${analytics.activeContributors}</strong><span>Active contributors</span></div></div></div></div></div>
             </div>
         `;
     }    
@@ -1296,9 +1403,16 @@ export class UI {
         const options = (values, placeholder) => `<option value="">${placeholder}</option>${values.map(value => `<option value="${value}">${value}</option>`).join('')}`;
         return `<div class="modal fade" id="okrSpecificationModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-scrollable"><div class="modal-content"><form id="okr-specification-form"><div class="modal-header"><div><p class="eyebrow mb-1">Agent-derived metadata</p><h5 class="modal-title">Review OKR set specification</h5></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><input type="hidden" id="okr-spec-cycle-id"><div class="alert alert-info small">This specification was inferred from the circular interview. Review it before saving; Objectives inherit these values unless an explicit override exists.</div><h6 class="mb-3">Classification</h6><div class="row g-3 mb-4"><div class="col-md-4"><label class="form-label" for="okr-spec-category">Category</label><select class="form-select" id="okr-spec-category">${options(OKR_CATEGORIES, 'Not inferred')}</select></div><div class="col-md-4"><label class="form-label" for="okr-spec-level">Level</label><select class="form-select" id="okr-spec-level">${options(OKR_LEVELS, 'Not inferred')}</select></div><div class="col-md-4"><label class="form-label" for="okr-spec-commitment">Commitment</label><select class="form-select" id="okr-spec-commitment">${options(OKR_COMMITMENTS, 'Not inferred')}</select></div></div><h6 class="mb-3">Operating context</h6><div class="row g-3 mb-4"><div class="col-md-6"><label class="form-label" for="okr-spec-industry">Industry</label><input class="form-control" id="okr-spec-industry"></div><div class="col-md-6"><label class="form-label" for="okr-spec-geography">Country / region</label><input class="form-control" id="okr-spec-geography"></div><div class="col-md-6"><label class="form-label" for="okr-spec-business-unit">Business unit</label><input class="form-control" id="okr-spec-business-unit"></div><div class="col-md-6"><label class="form-label" for="okr-spec-time-horizon">Time horizon</label><input class="form-control" id="okr-spec-time-horizon"></div><div class="col-md-6"><label class="form-label" for="okr-spec-services">Services / offering</label><textarea class="form-control" id="okr-spec-services" rows="3" placeholder="One per line"></textarea></div><div class="col-md-6"><label class="form-label" for="okr-spec-stakeholders">Stakeholders</label><textarea class="form-control" id="okr-spec-stakeholders" rows="3" placeholder="One per line"></textarea></div></div><h6 class="mb-3">Systemic synthesis</h6><div class="mb-3"><label class="form-label" for="okr-spec-outcome-thesis">Outcome thesis</label><textarea class="form-control" id="okr-spec-outcome-thesis" rows="2"></textarea></div><div class="mb-3"><label class="form-label" for="okr-spec-rationale">Rationale</label><textarea class="form-control" id="okr-spec-rationale" rows="3"></textarea></div><div class="row g-3"><div class="col-md-6"><label class="form-label" for="okr-spec-perspectives">Stakeholder perspectives</label><textarea class="form-control" id="okr-spec-perspectives" rows="4" placeholder="One insight per line"></textarea></div><div class="col-md-6"><label class="form-label" for="okr-spec-tensions">Productive tensions</label><textarea class="form-control" id="okr-spec-tensions" rows="4" placeholder="One tension per line"></textarea></div><div class="col-md-6"><label class="form-label" for="okr-spec-assumptions">Assumptions</label><textarea class="form-control" id="okr-spec-assumptions" rows="4" placeholder="One assumption per line"></textarea></div><div class="col-md-6"><label class="form-label" for="okr-spec-success-signals">Success signals</label><textarea class="form-control" id="okr-spec-success-signals" rows="4" placeholder="One signal per line"></textarea></div></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save specification</button></div></form></div></div></div>`;
     }
-    renderCommandPaletteModal(canEdit, isOwner) {
-        const command = (action, icon, title, hint, search, target = '') => `<button type="button" class="command-item" data-command="${action}" data-target="${target}" data-search="${search.toLocaleLowerCase()}"><i class="bi ${icon}"></i><span><strong>${title}</strong><small>${hint}</small></span><i class="bi bi-arrow-return-left"></i></button>`;
-        return `<div class="modal fade command-palette-modal" id="commandPaletteModal" tabindex="-1" aria-labelledby="command-palette-title"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="command-search"><i class="bi bi-search"></i><input id="command-palette-input" type="search" placeholder="Search views and actions…" autocomplete="off" aria-label="Search commands"><kbd>Esc</kbd></div><div class="command-results"><section class="command-group"><h2 id="command-palette-title">Navigate</h2>${command('navigate','bi-grid-1x2','Overview','Attention and supporting metrics','overview dashboard attention','#dashboard')}${command('navigate','bi-bullseye','Objectives','Review and update outcomes','objectives explorer okr','#explorer')}${command('navigate','bi-lightning-charge','Momentum','Private progress and team levels','momentum levels badges','#momentum')}${command('navigate','bi-diagram-3','Alignment','Direction, owners, and dependencies','alignment cascade dependencies','#cascade')}${command('navigate','bi-calendar3','Timeline','Named Objective and KR schedule','timeline gantt dates','#gantt')}${command('navigate','bi-exclamation-triangle','Risks','Exposed Key Results','risks confidence','#risk-board')}${command('navigate','bi-compass','Deep Dive','Systemic OKR context','deep dive context','#deep-dive')}${command('navigate','bi-lightbulb','Workbench','Shape early ideas','workbench ideas','#workbench')}${command('navigate','bi-arrow-repeat','Cycles','Manage planning cycles','cycles manage','#cycles')}${isOwner ? command('navigate','bi-gear','Settings','Workspace configuration','settings manage','#settings') : ''}</section><section class="command-group"><h2>Act</h2>${canEdit ? command('new-objective','bi-plus-circle','New Objective','Open the Objective drawer','new add create objective') : ''}${command('coach','bi-stars','Ask OKR Coach','Open contextual guidance','coach chat ask ai')}${command('share','bi-people','Share workspace','Manage members and access','share members access')}</section></div><footer><span><kbd>↑</kbd><kbd>↓</kbd> browse</span><span><kbd>Enter</kbd> select</span></footer></div></div></div>`;
+    renderOkrDetailDrawer() {
+        return `<div class="modal fade drawer-modal" id="okrDetailModal" tabindex="-1" aria-labelledby="okr-detail-title"><div class="modal-dialog drawer-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><div><p class="eyebrow mb-1">Contextual workspace</p><h5 class="modal-title" id="okr-detail-title">Outcome details</h5></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body" id="okr-detail-content"></div></div></div></div>`;
+    }
+    renderCommandPaletteModal(canEdit, isOwner, project) {
+        const escape = value => this._escapeHtml(value || '');
+        const command = (action, icon, title, hint, search, target = '') => `<button type="button" class="command-item" data-command="${action}" data-target="${escape(target)}" data-search="${escape(search.toLocaleLowerCase())}"><i class="bi ${icon}"></i><span><strong>${escape(title)}</strong><small>${escape(hint)}</small></span><i class="bi bi-arrow-return-left"></i></button>`;
+        const activeCycle = project.cycles?.find(cycle => cycle.status === 'Active');
+        const objectives = (project.objectives || []).filter(objective => objective.cycleId === activeCycle?.id);
+        const itemCommands = objectives.flatMap(objective => [command('open-item','bi-bullseye',objective.title,`${this._ownerName(project, objective.ownerId)} · Objective`,`objective ${objective.title}`,`${objective.id}|`), ...(objective.keyResults || []).map(keyResult => command('open-item','bi-graph-up',keyResult.title,`Key Result · ${objective.title}`,`key result ${keyResult.title} ${objective.title}`,`${objective.id}|${keyResult.id}`))]).join('');
+        return `<div class="modal fade command-palette-modal" id="commandPaletteModal" tabindex="-1" aria-labelledby="command-palette-title"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="command-search"><i class="bi bi-search"></i><input id="command-palette-input" type="search" placeholder="Search views, Objectives, and actions…" autocomplete="off" aria-label="Search commands"><kbd>Esc</kbd></div><div class="command-results"><section class="command-group"><h2 id="command-palette-title">Navigate</h2>${command('navigate','bi-grid-1x2','Overview','Attention and supporting metrics','overview dashboard attention','#dashboard')}${command('navigate','bi-check2-square','Weekly Focus','Private next actions and team challenges','weekly focus next action','#weekly-focus')}${command('navigate','bi-bullseye','Objectives','Review and update outcomes','objectives explorer okr','#explorer')}${command('navigate','bi-lightning-charge','Momentum','Private progress and team levels','momentum levels badges','#momentum')}${command('navigate','bi-diagram-3','Alignment','Direction, owners, and dependencies','alignment cascade dependencies','#cascade')}${command('navigate','bi-calendar3','Timeline','Named Objective and KR schedule','timeline gantt dates','#gantt')}${command('navigate','bi-exclamation-triangle','Risks','Exposed Key Results','risks confidence','#risk-board')}${command('navigate','bi-compass','Deep Dive','Systemic OKR context','deep dive context','#deep-dive')}${command('navigate','bi-lightbulb','Workbench','Shape early ideas','workbench ideas','#workbench')}${command('navigate','bi-arrow-repeat','Cycles','Manage planning cycles','cycles manage','#cycles')}${isOwner ? command('navigate','bi-gear','Settings','Workspace configuration','settings manage','#settings') : ''}</section><section class="command-group"><h2>Outcomes</h2>${itemCommands || '<p class="command-empty">No Objectives in the active cycle.</p>'}</section><section class="command-group"><h2>Act</h2>${canEdit ? command('new-objective','bi-plus-circle','New Objective','Open the Objective drawer','new add create objective') : ''}${command('coach','bi-stars','Ask OKR Coach','Open contextual guidance','coach chat ask ai')}${command('share','bi-people','Share workspace','Manage members and access','share members access')}</section></div><footer><span><kbd>↑</kbd><kbd>↓</kbd> browse</span><span><kbd>Enter</kbd> select</span></footer></div></div></div>`;
     }
     renderShareProjectModal() { return `<div class="modal fade" id="shareProjectModal" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Share Project</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="owner-disclaimer" class="alert alert-info small">As owner, you can manage members.</div><h6>Members</h6><ul class="list-group mb-4" id="project-members-list"><li class="list-group-item">Loading...</li></ul><form id="invite-member-form"><h6>Invite New Member</h6><div class="input-group"><input type="email" id="invite-email-input" class="form-control" placeholder="user@example.com" required><select id="invite-role-select" class="form-select flex-grow-0 w-auto"><option value="editor">Editor</option><option value="viewer">Viewer</option></select><button type="submit" class="btn btn-primary">Invite</button></div></form></div></div></div></div>`; }
 }

@@ -33,6 +33,7 @@ function run(store, ui, user) {
     let explorerResponsibleFilter = 'all';
     let dashboardOwnerFilter = 'all';
     let dashboardResponsibleFilter = 'all';
+    let explorerSavedView = localStorage.getItem('okrExplorerSavedView') || 'all';
     let workbenchUnsubscribe = null;
     let chatController = null;
 
@@ -196,7 +197,7 @@ function run(store, ui, user) {
         }
         
         const userRole = store.getCurrentUserRole();
-        ui.renderMainLayout(project, userRole);
+        ui.renderMainLayout(project, userRole, { uid: user.uid, email: user.email, displayName: user.displayName });
 
         chatController = new ChatController({
             getProject: () => store.getCurrentProject(),
@@ -249,6 +250,22 @@ function run(store, ui, user) {
                 openCommandPalette();
             }
         });
+        addListener(document.getElementById('notification-trigger'), 'click', () => ui.toggleNotificationCenter());
+        addListener(document.getElementById('notification-panel'), 'click', event => {
+            if (event.target.closest('#notification-close') || event.target.closest('a')) ui.toggleNotificationCenter(false);
+        });
+
+        const openEditor = (type, objectiveId, keyResultId = '') => {
+            const trigger = document.createElement('button');
+            trigger.type = 'button';
+            trigger.dataset.bsToggle = 'modal';
+            trigger.dataset.bsTarget = type === 'objective' ? '#objectiveModal' : '#keyResultModal';
+            trigger.dataset.objectiveId = objectiveId;
+            if (keyResultId) trigger.dataset.krId = keyResultId;
+            document.body.appendChild(trigger);
+            trigger.click();
+            setTimeout(() => trigger.remove(), 0);
+        };
 
         const router = () => {
             let currentProject = store.getCurrentProject();
@@ -267,16 +284,18 @@ function run(store, ui, user) {
 
             switch(hash) {
                 case '#dashboard': ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter); break;
+                case '#weekly-focus': ui.renderWeeklyFocusView(currentProject, { uid: user.uid, email: user.email, displayName: user.displayName }); break;
                 case '#momentum': ui.renderMomentumView(currentProject, { uid: user.uid, email: user.email, displayName: user.displayName }); break;
                 case '#deep-dive': ui.renderDeepDiveView(currentProject, currentRole); break;
-                case '#explorer': ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter, currentRole); break;
+                case '#explorer': ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter, currentRole, { uid: user.uid, email: user.email, displayName: user.displayName }, explorerSavedView); break;
                 case '#cascade': ui.renderCascadeView(currentProject); break;
                 case '#workbench': setupWorkbench(currentProject, currentRole); break;
                 case '#gantt': ui.renderGanttView(currentProject); break;
                 case '#risk-board': ui.renderRiskBoardView(currentProject); break;
                 case '#cycles': ui.renderCyclesView(currentProject, currentRole); break;
-                case '#settings': ui.renderSettingsView(currentProject); break;
+                case '#settings': ui.renderSettingsView(currentProject, store.getCurrentMemberPreferences()); break;
             }
+            ui.renderNotificationCenter(currentProject, { uid: user.uid, email: user.email, displayName: user.displayName }, store.getCurrentMemberPreferences());
             initializeTooltips();
         };
         
@@ -289,7 +308,10 @@ function run(store, ui, user) {
             });
         };
         
-        addListener(window, 'hashchange', router);
+        addListener(window, 'hashchange', () => {
+            router();
+            requestAnimationFrame(() => document.getElementById('main-workspace')?.focus({ preventScroll: true }));
+        });
         addListener(document.getElementById('back-to-projects'), 'click', async () => { 
             window.location.hash = ''; 
             store.setCurrentProjectId(null); 
@@ -316,12 +338,13 @@ function run(store, ui, user) {
             URL.revokeObjectURL(url);
             ui.showToast(`Project exported to ${fileName}.`, 'info');
         });
+        addListener(document.getElementById('topbar-export-project'), 'click', () => document.getElementById('export-project-btn')?.click());
         
         addListener(document.getElementById('search-input'), 'input', e => {
             const currentProject = store.getCurrentProject();
             if (!currentProject) return;
             const currentRole = store.getCurrentUserRole();
-            ui.renderExplorerView(currentProject, e.target.value, explorerResponsibleFilter, currentRole);
+            ui.renderExplorerView(currentProject, e.target.value, explorerResponsibleFilter, currentRole, { uid: user.uid, email: user.email, displayName: user.displayName }, explorerSavedView);
             initializeTooltips();
         });
         addListener(document.getElementById('cycle-selector-list'), 'click', async e => {
@@ -336,6 +359,20 @@ function run(store, ui, user) {
         });
         
         addListener(document.getElementById('app-container'), 'click', async e => {
+            if (e.target.closest('#clear-explorer-filters')) {
+                explorerResponsibleFilter = 'all';
+                explorerSavedView = 'all';
+                localStorage.setItem('okrExplorerSavedView', 'all');
+                const search = document.getElementById('search-input');
+                if (search) search.value = '';
+                router();
+                return;
+            }
+            const detailTrigger = e.target.closest('.open-okr-detail');
+            if (detailTrigger) {
+                ui.openOkrDetail(store.getCurrentProject(), detailTrigger.dataset.objectiveId, detailTrigger.dataset.krId, store.getCurrentUserRole());
+                return;
+            }
             if (e.target.closest('.open-okr-coach-btn')) {
                 document.getElementById('okr-chat-launcher')?.click();
                 return;
@@ -461,7 +498,12 @@ function run(store, ui, user) {
                 dashboardResponsibleFilter = e.target.value; currentProject = store.getCurrentProject(); ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter);
             }
             if (e.target.id === 'explorer-filter-responsible') {
-                explorerResponsibleFilter = e.target.value; currentProject = store.getCurrentProject(); currentRole = store.getCurrentUserRole(); ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter, currentRole); initializeTooltips();
+                explorerResponsibleFilter = e.target.value; currentProject = store.getCurrentProject(); currentRole = store.getCurrentUserRole(); ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter, currentRole, { uid: user.uid, email: user.email, displayName: user.displayName }, explorerSavedView); initializeTooltips();
+            }
+            if (e.target.id === 'explorer-saved-view') {
+                explorerSavedView = e.target.value;
+                localStorage.setItem('okrExplorerSavedView', explorerSavedView);
+                router();
             }
         });
         
@@ -475,7 +517,24 @@ function run(store, ui, user) {
                     if (command === 'new-objective') document.getElementById('add-objective-btn')?.click();
                     if (command === 'coach') document.getElementById('okr-chat-launcher')?.click();
                     if (command === 'share') document.getElementById('share-project-btn')?.click();
-                }, 180);
+                    if (command === 'open-item') {
+                        const [objectiveId, keyResultId] = target.split('|');
+                        document.getElementById('command-palette-trigger')?.focus();
+                        ui.openOkrDetail(store.getCurrentProject(), objectiveId, keyResultId, store.getCurrentUserRole());
+                    }
+                }, 350);
+                return;
+            }
+            const detailItem = e.target.closest('.open-okr-detail');
+            if (detailItem) {
+                ui.hideModal('okrDetailModal');
+                setTimeout(() => ui.openOkrDetail(store.getCurrentProject(), detailItem.dataset.objectiveId, detailItem.dataset.krId, store.getCurrentUserRole()), 350);
+                return;
+            }
+            const detailEdit = e.target.closest('.detail-edit-objective,.detail-edit-kr');
+            if (detailEdit) {
+                ui.hideModal('okrDetailModal');
+                setTimeout(() => openEditor(detailEdit.classList.contains('detail-edit-kr') ? 'kr' : 'objective', detailEdit.dataset.objectiveId, detailEdit.dataset.krId), 350);
                 return;
             }
             if (e.target.closest('.remove-member-btn')) {
@@ -588,8 +647,18 @@ function run(store, ui, user) {
                     currentValue: document.getElementById('kr-current-value').value, targetValue: document.getElementById('kr-target-value').value,
                     confidence: document.getElementById('kr-confidence').value, notes: document.getElementById('kr-notes').value
                 };
-                if (krId) await store.updateKeyResult(objId, krId, data); else await store.addKeyResult(objId, data);
-                ui.showToast(krId ? 'Key Result updated.' : 'Key Result added.'); ui.hideModal('keyResultModal'); router();
+                const result = krId ? await store.updateKeyResult(objId, krId, data) : (await store.addKeyResult(objId, data), null);
+                const preferences = store.getCurrentMemberPreferences();
+                const celebration = preferences.celebrations !== false && (result?.objectiveCompleted ? 'Objective reached its target—a useful moment to review and learn.' : result?.riskResolved ? 'Risk moved back on track. The response is now part of the team learning feed.' : '');
+                ui.showToast(celebration || (krId ? 'Key Result updated.' : 'Key Result added.'), celebration ? 'success' : 'info'); ui.hideModal('keyResultModal'); router();
+            }
+            if (e.target.id === 'objective-comment-form') {
+                const objectiveId = document.getElementById('comment-objective-id').value;
+                const result = await store.addObjectiveComment(objectiveId, document.getElementById('objective-comment-text').value);
+                if (result.success) {
+                    ui.showToast('Learning note shared with the team.', 'success');
+                    ui.openOkrDetail(store.getCurrentProject(), objectiveId, '', store.getCurrentUserRole());
+                }
             }
             if (e.target.id === 'okr-specification-form') {
                 const toList = id => document.getElementById(id).value.split(/[\n,]/).map(value => value.trim()).filter(Boolean);
@@ -625,6 +694,24 @@ function run(store, ui, user) {
             if (e.target.id === 'new-cycle-form') {
                 const data = { name: document.getElementById('cycle-name').value, startDate: document.getElementById('cycle-start-date').value, endDate: document.getElementById('cycle-end-date').value };
                 await store.addCycle(data); ui.showToast(`Cycle "${data.name}" added.`); e.target.reset(); router(); ui.renderNavControls(store.getCurrentProject());
+            }
+            if (e.target.id === 'retrospective-form') {
+                const cycleId = document.getElementById('retrospective-cycle-id').value;
+                const result = await store.saveRetrospective(cycleId, {
+                    summary: document.getElementById('retrospective-summary').value,
+                    lessons: document.getElementById('retrospective-lessons').value.split('\n').map(value => value.trim()).filter(Boolean)
+                });
+                ui.showToast(result.newlyCompleted ? 'Learning loop completed.' : 'Retrospective updated.', 'success');
+                router();
+            }
+            if (e.target.id === 'engagement-preferences-form') {
+                await store.updateCurrentMemberPreferences({
+                    inAppNotifications: document.getElementById('preference-notifications').checked,
+                    weeklySummary: document.getElementById('preference-weekly-summary').checked,
+                    celebrations: document.getElementById('preference-celebrations').checked
+                });
+                ui.renderNotificationCenter(store.getCurrentProject(), { uid: user.uid, email: user.email, displayName: user.displayName }, store.getCurrentMemberPreferences());
+                ui.showToast('In-app preferences saved.', 'success');
             }
             if (e.target.id === 'foundation-form') {
                 const data = { mission: document.getElementById('foundation-mission').value, vision: document.getElementById('foundation-vision').value };

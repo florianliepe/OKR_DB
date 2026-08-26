@@ -78,6 +78,7 @@ export function calculateMomentum(objectives = [], options = {}) {
         const age = event.type === 'risk_resolved' && toDate(event.occurredAt) ? daysBetween(now, toDate(event.occurredAt)) : -1;
         return age >= 0 && age <= 30;
     }).length;
+    const retrospectiveComplete = events.some(event => event.type === 'retrospective_completed');
     const recentlyUpdated = keyResults.filter(keyResult => {
         const latest = latestHistory(keyResult);
         const date = latest && toDate(latest.date);
@@ -120,7 +121,8 @@ export function calculateMomentum(objectives = [], options = {}) {
             hasDeepDive && { name: 'Context setter', icon: 'bi-compass', description: 'Completed an OKR Deep Dive' },
             recentCheckIns.length >= 3 && { name: 'Evidence builder', icon: 'bi-graph-up-arrow', description: 'Recorded three recent check-ins' },
             wellFormed.length > 0 && { name: 'Focus keeper', icon: 'bi-bullseye', description: 'Maintains focused OKR sets' },
-            (riskResolutions > 0 || followedRisks.length > 0) && { name: 'Risk navigator', icon: 'bi-shield-check', description: riskResolutions > 0 ? 'Turned an exposed risk back on track' : 'Actively follows up exposed risks' }
+            (riskResolutions > 0 || followedRisks.length > 0) && { name: 'Risk navigator', icon: 'bi-shield-check', description: riskResolutions > 0 ? 'Turned an exposed risk back on track' : 'Actively follows up exposed risks' },
+            retrospectiveComplete && { name: 'Learning loop', icon: 'bi-journal-check', description: 'Captured reusable cycle learning' }
         ].filter(Boolean)
     };
 }

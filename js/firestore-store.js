@@ -76,7 +76,8 @@ export class FirestoreStore {
             objectives: [],
             members: { [this.userId]: 'owner' },
             workbenchItems: [],
-            activityEvents: []
+            activityEvents: [],
+            memberPreferences: { [this.userId]: { inAppNotifications: true, weeklySummary: true, celebrations: true } }
         };
         const docRef = await addDoc(this.projectsCollection, newProjectData);
         const newProject = { id: docRef.id, ...newProjectData };
@@ -106,7 +107,8 @@ export class FirestoreStore {
             name: `${projectData.name} (Imported)`,
             members: { [this.userId]: 'owner' },
             workbenchItems: projectData.workbenchItems || [],
-            activityEvents: []
+            activityEvents: [],
+            memberPreferences: { [this.userId]: { inAppNotifications: true, weeklySummary: true, celebrations: true } }
         };
         delete newProjectData.id; 
         delete newProjectData.workbenchContent; // remove legacy field
@@ -129,6 +131,7 @@ export class FirestoreStore {
         clonedProjectData.members = { [this.userId]: 'owner' };
         clonedProjectData.workbenchItems = []; // Initialize as empty array
         clonedProjectData.activityEvents = [];
+        clonedProjectData.memberPreferences = { [this.userId]: { inAppNotifications: true, weeklySummary: true, celebrations: true } };
         delete clonedProjectData.workbenchContent; // remove legacy field
         
         const newCycleId = `cycle-${Date.now() + 1}`;
@@ -311,7 +314,9 @@ export class FirestoreStore {
         const project = this.getCurrentProject();
         if (!project) return;
         const obj = project.objectives.find(o => o.id === objId);
+        let result = { checkedIn: false, riskResolved: false, objectiveCompleted: false };
         if (obj) {
+            const previousObjectiveProgress = Number(obj.progress || 0);
             const kr = obj.keyResults.find(k => k.id === krId);
             if(kr) {
                 if (!kr.history) kr.history = [];
@@ -325,15 +330,56 @@ export class FirestoreStore {
                         confidence: data.confidence
                     });
                     this._appendActivity(project, 'kr_check_in', { cycleId: obj.cycleId, ownerId: obj.ownerId, objectiveId: obj.id, keyResultId: kr.id });
+                    result.checkedIn = true;
                     if (['At Risk', 'Off Track'].includes(previousConfidence) && data.confidence === 'On Track') {
                         this._appendActivity(project, 'risk_resolved', { cycleId: obj.cycleId, ownerId: obj.ownerId, objectiveId: obj.id, keyResultId: kr.id });
+                        result.riskResolved = true;
                     }
                 }
                 Object.assign(kr, data);
             }
             obj.progress = this.calculateProgress(obj);
+            if (previousObjectiveProgress < 100 && obj.progress >= 100 && !(project.activityEvents || []).some(event => event.type === 'objective_completed' && event.objectiveId === obj.id)) {
+                this._appendActivity(project, 'objective_completed', { cycleId: obj.cycleId, ownerId: obj.ownerId, objectiveId: obj.id });
+                result.objectiveCompleted = true;
+            }
             await this._updateCurrentProjectInFirestore({ objectives: project.objectives, activityEvents: project.activityEvents || [] });
         }
+        return result;
+    }
+
+    getCurrentMemberPreferences() {
+        const project = this.getCurrentProject();
+        return project?.memberPreferences?.[this.userId] || { inAppNotifications: true, weeklySummary: true, celebrations: true };
+    }
+
+    async updateCurrentMemberPreferences(preferences) {
+        const project = this.getCurrentProject();
+        if (!project) return;
+        project.memberPreferences = project.memberPreferences || {};
+        project.memberPreferences[this.userId] = { ...this.getCurrentMemberPreferences(), ...preferences };
+        await this._updateCurrentProjectInFirestore({ [`memberPreferences.${this.userId}`]: project.memberPreferences[this.userId] });
+    }
+
+    async addObjectiveComment(objectiveId, text) {
+        const project = this.getCurrentProject();
+        const objective = project?.objectives.find(item => item.id === objectiveId);
+        if (!project || !objective || !text.trim()) return { success: false };
+        objective.comments = [...(objective.comments || []), { id: `comment-${Date.now()}`, actorId: this.userId, text: text.trim(), createdAt: new Date().toISOString() }].slice(-50);
+        this._appendActivity(project, 'comment_added', { cycleId: objective.cycleId, ownerId: objective.ownerId, objectiveId: objective.id });
+        await this._updateCurrentProjectInFirestore({ objectives: project.objectives, activityEvents: project.activityEvents });
+        return { success: true };
+    }
+
+    async saveRetrospective(cycleId, data) {
+        const project = this.getCurrentProject();
+        const cycle = project?.cycles.find(item => item.id === cycleId);
+        if (!project || !cycle) return { success: false };
+        const wasComplete = Boolean(cycle.retrospective?.completedAt);
+        cycle.retrospective = { summary: data.summary.trim(), lessons: data.lessons.filter(Boolean), completedAt: new Date().toISOString(), completedBy: this.userId };
+        if (!wasComplete) this._appendActivity(project, 'retrospective_completed', { cycleId, ownerId: 'company' });
+        await this._updateCurrentProjectInFirestore({ cycles: project.cycles, activityEvents: project.activityEvents });
+        return { success: true, newlyCompleted: !wasComplete };
     }
 
     async deleteKeyResult(objId, krId) {

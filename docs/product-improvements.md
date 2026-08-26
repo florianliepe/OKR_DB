@@ -7,6 +7,9 @@
 - Context-preserving Objective and Key Result side drawers plus an accessible command palette for navigation and common actions.
 - Private personal momentum and a visible normalized team level board based on meaningful OKR behavior.
 - Explicit, bounded activity events for actor-specific check-ins, resolved risks, and Deep Dive completion.
+- Private Weekly Focus, meaningful streak guidance, automatic team challenges, subtle celebrations, cycle milestones, guided retrospectives, and a team learning feed.
+- Per-member in-app notification/summary preferences and privacy-safe aggregate engagement health.
+- Objective/KR command search, a unified outcome detail drawer with learning notes, saved task views, consolidated filters, simplified cards, and decision-oriented Overview summaries.
 - Deterministic, readable Alignment cards with black text and explicit dependencies.
 - Named Objective and Key Result Timeline rows with hover, keyboard focus, dates, and progress.
 - Removal of the D3 and Frappe Gantt runtime dependencies.
@@ -20,13 +23,10 @@
 
 ## Next
 
-- Instrument privacy-safe task completion analytics before removing further views or controls.
-- Extend command search to individual Objectives and Key Results without exposing private activity.
+- Instrument opt-in usability telemetry before removing further views or controls; current engagement health intentionally uses aggregate outcome activity only.
 - Add a cycle setup wizard with OKR quality checks, baselines, target dates, and owner capacity review.
-- Add weekly check-ins, comments, reminders, confidence explanations, and an immutable activity trail.
-- Turn the dashboard into a decision surface: show deltas, stale updates, leading risks, missing owners, and recommended attention—not only totals.
-- Add keyboard navigation, skip links, contrast testing, screen-reader labels for visualizations, and complete WCAG 2.2 AA verification.
-- Add role-aware command/search navigation and saved filters.
+- Add reminder snoozing, confidence explanations, and conflict-safe immutable event persistence.
+- Complete formal WCAG 2.2 AA verification with automated contrast checks and assistive-technology testing.
 - Add optimistic UI, Firestore offline states, retry controls, and conflict handling for concurrent edits.
 
 ## Later
