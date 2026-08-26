@@ -232,6 +232,24 @@ function run(store, ui, user) {
             if (event.target.closest('.nav-link')) closeSidebar();
         });
 
+        const manageToggle = document.getElementById('manage-nav-toggle');
+        const savedManageState = localStorage.getItem('okrManageExpanded') === 'true';
+        ui.setManageNavigation(savedManageState || ['#cycles', '#settings'].includes(window.location.hash));
+        addListener(manageToggle, 'click', () => {
+            const expanded = manageToggle.getAttribute('aria-expanded') !== 'true';
+            ui.setManageNavigation(expanded);
+            localStorage.setItem('okrManageExpanded', String(expanded));
+        });
+
+        const openCommandPalette = () => ui.openCommandPalette();
+        addListener(document.getElementById('command-palette-trigger'), 'click', openCommandPalette);
+        addListener(document, 'keydown', event => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase() === 'k') {
+                event.preventDefault();
+                openCommandPalette();
+            }
+        });
+
         const router = () => {
             let currentProject = store.getCurrentProject();
             if (!currentProject) { main(); return; }
@@ -242,20 +260,20 @@ function run(store, ui, user) {
             }
 
             const hash = window.location.hash || '#dashboard';
+            if (hash === '#reporting') { window.location.hash = '#dashboard'; return; }
             ui.showView(hash.substring(1) + '-view');
             
             const currentRole = store.getCurrentUserRole();
 
             switch(hash) {
                 case '#dashboard': ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter); break;
-                case '#momentum': ui.renderMomentumView(currentProject, { email: user.email, displayName: user.displayName }); break;
+                case '#momentum': ui.renderMomentumView(currentProject, { uid: user.uid, email: user.email, displayName: user.displayName }); break;
                 case '#deep-dive': ui.renderDeepDiveView(currentProject, currentRole); break;
                 case '#explorer': ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter, currentRole); break;
                 case '#cascade': ui.renderCascadeView(currentProject); break;
                 case '#workbench': setupWorkbench(currentProject, currentRole); break;
                 case '#gantt': ui.renderGanttView(currentProject); break;
                 case '#risk-board': ui.renderRiskBoardView(currentProject); break;
-                case '#reporting': ui.renderReportingView(currentProject); break;
                 case '#cycles': ui.renderCyclesView(currentProject, currentRole); break;
                 case '#settings': ui.renderSettingsView(currentProject); break;
             }
@@ -434,7 +452,7 @@ function run(store, ui, user) {
             let currentProject;
             let currentRole;
             if (e.target.id === 'report-date-input') {
-                currentProject = store.getCurrentProject(); ui.renderReportingView(currentProject, e.target.value);
+                currentProject = store.getCurrentProject(); ui.renderHistoricalSnapshot(currentProject, e.target.value);
             }
             if (e.target.id === 'dashboard-filter-owner') {
                 dashboardOwnerFilter = e.target.value; currentProject = store.getCurrentProject(); ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter);
@@ -448,6 +466,18 @@ function run(store, ui, user) {
         });
         
         addListener(document.getElementById('modal-container'), 'click', async e => {
+            const commandItem = e.target.closest('.command-item');
+            if (commandItem) {
+                const { command, target } = commandItem.dataset;
+                ui.hideModal('commandPaletteModal');
+                setTimeout(() => {
+                    if (command === 'navigate') window.location.hash = target;
+                    if (command === 'new-objective') document.getElementById('add-objective-btn')?.click();
+                    if (command === 'coach') document.getElementById('okr-chat-launcher')?.click();
+                    if (command === 'share') document.getElementById('share-project-btn')?.click();
+                }, 180);
+                return;
+            }
             if (e.target.closest('.remove-member-btn')) {
                 const uid = e.target.closest('.remove-member-btn').dataset.uid;
                 if (confirm('Are you sure you want to remove this member?')) {
@@ -460,6 +490,19 @@ function run(store, ui, user) {
                     } else ui.showToast(result.message, 'danger');
                 }
             }
+        });
+        addListener(document.getElementById('modal-container'), 'input', e => {
+            if (e.target.id === 'command-palette-input') ui.filterCommandPalette(e.target.value);
+        });
+        addListener(document.getElementById('commandPaletteModal'), 'keydown', e => {
+            if (!['ArrowDown', 'ArrowUp'].includes(e.key)) return;
+            const items = [...document.querySelectorAll('.command-item:not([hidden])')];
+            if (!items.length) return;
+            e.preventDefault();
+            const currentIndex = items.indexOf(document.activeElement);
+            const direction = e.key === 'ArrowDown' ? 1 : -1;
+            const nextIndex = currentIndex < 0 ? (direction > 0 ? 0 : items.length - 1) : (currentIndex + direction + items.length) % items.length;
+            items[nextIndex].focus();
         });
          addListener(document.getElementById('modal-container'), 'change', async e => {
             if (e.target.classList.contains('member-role-select')) {

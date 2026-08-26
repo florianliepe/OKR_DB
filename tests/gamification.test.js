@@ -41,3 +41,20 @@ test('private momentum only includes objectives assigned to the signed-in user',
     assert.equal(result.matched, true);
     assert.equal(result.objectiveCount, 1);
 });
+
+test('explicit activity events attribute check-ins and risk resolution to the actor', () => {
+    const project = {
+        cycles: [{ id: 'cycle', status: 'Active', okrSpecification: { category: 'Strategic' } }],
+        activityEvents: [
+            { type: 'kr_check_in', actorId: 'user-1', cycleId: 'cycle', ownerId: 'team', objectiveId: 'objective', occurredAt: '2026-08-25T10:00:00Z' },
+            { type: 'risk_resolved', actorId: 'user-1', cycleId: 'cycle', ownerId: 'team', objectiveId: 'objective', occurredAt: '2026-08-25T10:01:00Z' },
+            { type: 'deep_dive_completed', actorId: 'user-1', cycleId: 'cycle', ownerId: 'company', occurredAt: '2026-08-24T10:00:00Z' }
+        ],
+        objectives: [{ id: 'objective', cycleId: 'cycle', ownerId: 'team', responsible: '', keyResults: [kr('On Track', ['2026-08-25'])] }]
+    };
+    const result = buildPrivateMomentum(project, { uid: 'user-1' }, now);
+    assert.equal(result.matched, true);
+    assert.equal(result.recentCheckIns, 1);
+    assert.equal(result.riskResolutions, 1);
+    assert.ok(result.badges.some(badge => badge.name === 'Risk navigator'));
+});

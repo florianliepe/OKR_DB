@@ -75,7 +75,8 @@ export class FirestoreStore {
             teams: initialData.teams.map((teamName, index) => ({ id: `team-${Date.now() + index}`, name: teamName })),
             objectives: [],
             members: { [this.userId]: 'owner' },
-            workbenchItems: [] // Changed from workbenchContent
+            workbenchItems: [],
+            activityEvents: []
         };
         const docRef = await addDoc(this.projectsCollection, newProjectData);
         const newProject = { id: docRef.id, ...newProjectData };
@@ -104,7 +105,8 @@ export class FirestoreStore {
             isArchived: false, 
             name: `${projectData.name} (Imported)`,
             members: { [this.userId]: 'owner' },
-            workbenchItems: projectData.workbenchItems || []
+            workbenchItems: projectData.workbenchItems || [],
+            activityEvents: []
         };
         delete newProjectData.id; 
         delete newProjectData.workbenchContent; // remove legacy field
@@ -126,6 +128,7 @@ export class FirestoreStore {
         clonedProjectData.isArchived = false;
         clonedProjectData.members = { [this.userId]: 'owner' };
         clonedProjectData.workbenchItems = []; // Initialize as empty array
+        clonedProjectData.activityEvents = [];
         delete clonedProjectData.workbenchContent; // remove legacy field
         
         const newCycleId = `cycle-${Date.now() + 1}`;
@@ -154,6 +157,21 @@ export class FirestoreStore {
         const projectRef = this._getProjectDocRef(projectId);
         if (!projectRef) return;
         await updateDoc(projectRef, updateObj);
+    }
+
+    _appendActivity(project, type, details = {}) {
+        const event = {
+            id: `activity-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            type,
+            actorId: this.userId,
+            occurredAt: new Date().toISOString(),
+            cycleId: details.cycleId || null,
+            ownerId: details.ownerId || null,
+            objectiveId: details.objectiveId || null,
+            keyResultId: details.keyResultId || null
+        };
+        project.activityEvents = [...(project.activityEvents || []), event].slice(-500);
+        return event;
     }
     
     async archiveProject(projectId) {
@@ -218,7 +236,8 @@ export class FirestoreStore {
         const cycle = project.cycles.find(item => item.id === cycleId);
         if (!cycle) return { success: false, message: 'OKR cycle not found.' };
         cycle.okrSpecification = specification;
-        await this._updateCurrentProjectInFirestore({ cycles: project.cycles });
+        this._appendActivity(project, 'deep_dive_completed', { cycleId, ownerId: 'company' });
+        await this._updateCurrentProjectInFirestore({ cycles: project.cycles, activityEvents: project.activityEvents });
         return { success: true };
     }
 
@@ -240,7 +259,8 @@ export class FirestoreStore {
             endDate: data.endDate || ''
         };
         project.objectives.push(newObjective);
-        await this._updateCurrentProjectInFirestore({ objectives: project.objectives });
+        this._appendActivity(project, 'objective_created', { cycleId: activeCycle.id, ownerId: newObjective.ownerId, objectiveId: newObjective.id });
+        await this._updateCurrentProjectInFirestore({ objectives: project.objectives, activityEvents: project.activityEvents });
     }
 
     async updateObjective(id, data) {
@@ -282,7 +302,8 @@ export class FirestoreStore {
             };
             obj.keyResults.push(newKr);
             obj.progress = this.calculateProgress(obj);
-            await this._updateCurrentProjectInFirestore({ objectives: project.objectives });
+            this._appendActivity(project, 'key_result_created', { cycleId: obj.cycleId, ownerId: obj.ownerId, objectiveId: obj.id, keyResultId: newKr.id });
+            await this._updateCurrentProjectInFirestore({ objectives: project.objectives, activityEvents: project.activityEvents });
         }
     }
     
@@ -296,17 +317,22 @@ export class FirestoreStore {
                 if (!kr.history) kr.history = [];
                 const hasValueChanged = String(kr.currentValue) !== String(data.currentValue);
                 const hasConfidenceChanged = kr.confidence !== data.confidence;
+                const previousConfidence = kr.confidence;
                 if (hasValueChanged || hasConfidenceChanged) {
                     kr.history.push({
                         date: new Date().toISOString().split('T')[0],
                         value: data.currentValue,
                         confidence: data.confidence
                     });
+                    this._appendActivity(project, 'kr_check_in', { cycleId: obj.cycleId, ownerId: obj.ownerId, objectiveId: obj.id, keyResultId: kr.id });
+                    if (['At Risk', 'Off Track'].includes(previousConfidence) && data.confidence === 'On Track') {
+                        this._appendActivity(project, 'risk_resolved', { cycleId: obj.cycleId, ownerId: obj.ownerId, objectiveId: obj.id, keyResultId: kr.id });
+                    }
                 }
                 Object.assign(kr, data);
             }
             obj.progress = this.calculateProgress(obj);
-            await this._updateCurrentProjectInFirestore({ objectives: project.objectives });
+            await this._updateCurrentProjectInFirestore({ objectives: project.objectives, activityEvents: project.activityEvents || [] });
         }
     }
 

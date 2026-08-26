@@ -7,7 +7,7 @@ const LEVELS = Object.freeze([
 ]);
 
 function toDate(value) {
-    const date = value ? new Date(`${value}T12:00:00`) : null;
+    const date = value ? new Date(String(value).includes('T') ? value : `${value}T12:00:00`) : null;
     return date && !Number.isNaN(date.getTime()) ? date : null;
 }
 
@@ -63,10 +63,21 @@ export function calculateMomentum(objectives = [], options = {}) {
     const hasDeepDive = Boolean(options.hasDeepDive);
     const keyResults = objectives.flatMap(objective => objective.keyResults || []);
     const history = keyResults.flatMap(keyResult => keyResult.history || []);
-    const recentCheckIns = history.filter(entry => {
+    const events = options.events || [];
+    const checkInEvents = events.filter(event => event.type === 'kr_check_in' && toDate(event.occurredAt));
+    const historicRecentCheckIns = history.filter(entry => {
         const date = toDate(entry.date);
         return date && daysBetween(now, date) >= 0 && daysBetween(now, date) <= 30;
     });
+    const eventRecentCheckIns = checkInEvents.filter(event => {
+        const date = toDate(event.occurredAt);
+        return daysBetween(now, date) >= 0 && daysBetween(now, date) <= 30;
+    });
+    const recentCheckIns = checkInEvents.length ? eventRecentCheckIns : historicRecentCheckIns;
+    const riskResolutions = events.filter(event => {
+        const age = event.type === 'risk_resolved' && toDate(event.occurredAt) ? daysBetween(now, toDate(event.occurredAt)) : -1;
+        return age >= 0 && age <= 30;
+    }).length;
     const recentlyUpdated = keyResults.filter(keyResult => {
         const latest = latestHistory(keyResult);
         const date = latest && toDate(latest.date);
@@ -96,19 +107,20 @@ export function calculateMomentum(objectives = [], options = {}) {
     return {
         score,
         level,
-        streak: calculateWeeklyStreak(history, now),
+        streak: calculateWeeklyStreak(checkInEvents.length ? checkInEvents.map(event => ({ date: event.occurredAt.slice(0, 10) })) : history, now),
         objectiveCount: objectives.length,
         keyResultCount: keyResults.length,
         recentCheckIns: recentCheckIns.length,
         freshKeyResults: recentlyUpdated.length,
         wellFormedObjectives: wellFormed.length,
         followedRisks: followedRisks.length,
+        riskResolutions,
         riskCount: risky.length,
         badges: [
             hasDeepDive && { name: 'Context setter', icon: 'bi-compass', description: 'Completed an OKR Deep Dive' },
             recentCheckIns.length >= 3 && { name: 'Evidence builder', icon: 'bi-graph-up-arrow', description: 'Recorded three recent check-ins' },
             wellFormed.length > 0 && { name: 'Focus keeper', icon: 'bi-bullseye', description: 'Maintains focused OKR sets' },
-            followedRisks.length > 0 && { name: 'Risk navigator', icon: 'bi-shield-check', description: 'Actively follows up exposed risks' }
+            (riskResolutions > 0 || followedRisks.length > 0) && { name: 'Risk navigator', icon: 'bi-shield-check', description: riskResolutions > 0 ? 'Turned an exposed risk back on track' : 'Actively follows up exposed risks' }
         ].filter(Boolean)
     };
 }
@@ -118,10 +130,13 @@ export function buildTeamLevelBoard(project, now = new Date()) {
     if (!activeCycle) return [];
     const hasDeepDive = hasDeepDiveContext(activeCycle);
     const owners = [{ id: 'company', name: project.companyName || project.name }, ...(project.teams || [])];
+    const cycleEvents = (project.activityEvents || []).filter(event => event.cycleId === activeCycle.id);
     const entries = owners.map(owner => {
         const objectives = (project.objectives || []).filter(objective => objective.cycleId === activeCycle.id && objective.ownerId === owner.id);
         if (!objectives.length) return null;
-        return { ownerId: owner.id, ownerName: owner.name, ...calculateMomentum(objectives, { now, hasDeepDive }) };
+        const events = cycleEvents.filter(event => event.ownerId === owner.id);
+        const ownerHasDeepDive = events.some(event => event.type === 'deep_dive_completed') || (!cycleEvents.length && owner.id === 'company' && hasDeepDive);
+        return { ownerId: owner.id, ownerName: owner.name, ...calculateMomentum(objectives, { now, hasDeepDive: ownerHasDeepDive, events }) };
     }).filter(Boolean).sort((a, b) => b.score - a.score || b.recentCheckIns - a.recentCheckIns || a.ownerName.localeCompare(b.ownerName));
     let previousScore = null;
     let previousRank = 0;
@@ -137,14 +152,16 @@ export function buildPrivateMomentum(project, user = {}, now = new Date()) {
     const activeCycle = (project.cycles || []).find(cycle => cycle.status === 'Active');
     if (!activeCycle) return null;
     const aliases = [user.email, user.displayName].filter(Boolean).map(value => value.trim().toLocaleLowerCase());
+    const actorEvents = (project.activityEvents || []).filter(event => event.cycleId === activeCycle.id && event.actorId === user.uid);
     const objectives = (project.objectives || []).filter(objective => {
         if (objective.cycleId !== activeCycle.id) return false;
         const responsible = String(objective.responsible || '').trim().toLocaleLowerCase();
         return responsible && aliases.some(alias => responsible === alias || responsible.includes(alias) || alias.includes(responsible));
     });
+    const actorHasDeepDive = actorEvents.some(event => event.type === 'deep_dive_completed') || (!(project.activityEvents || []).length && hasDeepDiveContext(activeCycle));
     return {
-        matched: objectives.length > 0,
-        ...calculateMomentum(objectives, { now, hasDeepDive: hasDeepDiveContext(activeCycle) })
+        matched: objectives.length > 0 || actorEvents.length > 0,
+        ...calculateMomentum(objectives, { now, hasDeepDive: actorHasDeepDive, events: actorEvents })
     };
 }
 

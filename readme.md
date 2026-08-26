@@ -34,6 +34,8 @@ The **Momentum** view derives a private personal level and a normalized team lev
 
 The cockpit uses concise task-oriented navigation. **Alignment** presents strategy, owners, Objectives, and dependencies as readable cards. **Timeline** presents persistently named Objective and Key Result rows with date ranges, progress, and coordinated hover/focus states.
 
+**Overview** is the attention-first decision surface for risks, stale evidence, design gaps, and near deadlines; historical snapshots are available inline. Objective and Key Result editing stays in contextual side drawers, while Ctrl/Cmd+K opens the command palette. Momentum uses a bounded workspace activity trail to attribute check-ins, resolved risks, and Deep Dive completion more precisely without exposing individual competition.
+
 ## Architecture
 
 - `js/app.js` — authentication-aware application controller and event coordination
