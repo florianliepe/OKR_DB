@@ -556,7 +556,7 @@ export class UI {
             return [objectiveRow, ...keyResultRows];
         });
         view.innerHTML = `
-            <div class="view-intro"><div><p class="eyebrow">Active cycle · ${escape(activeCycle.name)}</p><h2>Outcome timeline</h2><p>Objective and Key Result names stay visible. Hover or focus a row to inspect its dates and progress.</p></div><span class="view-intro__meta">${objectives.length} objectives · ${rows.length - objectives.length} key results</span></div>
+            <div class="view-intro"><div><p class="eyebrow">Active cycle · ${escape(activeCycle.name)}</p><h2>Outcome timeline</h2><p>Objective and Key Result names stay visible. Hover or focus a row to inspect its dates and progress.</p></div><span class="view-intro__meta">${objectives.length} objective${objectives.length === 1 ? '' : 's'} · ${rows.length - objectives.length} key result${rows.length - objectives.length === 1 ? '' : 's'}</span></div>
             <div class="timeline-shell" role="table" aria-label="Objective and Key Result timeline">
                 <div class="timeline-header" role="row"><div class="timeline-name-head" role="columnheader">Outcome</div><div class="timeline-axis" role="columnheader">${monthTicks.map(tick => `<span style="left:${tick.left}%">${escape(tick.label)}</span>`).join('')}</div></div>
                 ${rows.map(row => {
@@ -589,7 +589,7 @@ export class UI {
                 <div class="momentum-score"><strong>${personal.score}</strong><span>/ 100</span></div>
                 <div class="momentum-progress"><span style="width:${personal.score}%"></span></div>
                 <div class="momentum-next"><i class="bi bi-arrow-up-right"></i><span><small>Best next move</small><strong>${escape(nextAction)}</strong></span></div>
-                <div class="momentum-stats"><span><strong>${personal.streak}</strong> week streak</span><span><strong>${personal.recentCheckIns}</strong> recent check-ins</span><span><strong>${personal.freshKeyResults}/${personal.keyResultCount}</strong> fresh KRs</span></div>
+                <div class="momentum-stats"><span><strong>${personal.streak}</strong> week streak</span><span><strong>${personal.recentCheckIns}</strong> recent check-ins</span><span>${personal.keyResultCount ? `<strong>${personal.freshKeyResults}/${personal.keyResultCount}</strong> fresh KRs` : '<strong>0</strong> KRs defined'}</span></div>
             </section>` : `
             <section class="momentum-personal momentum-personal--empty"><div><p class="eyebrow">Visible only to you</p><h2 id="my-momentum-title">Start your momentum</h2><p>${escape(nextAction)}</p></div><i class="bi bi-person-check"></i></section>`;
         const badges = personal?.badges || [];
@@ -601,7 +601,7 @@ export class UI {
                 <section class="card momentum-card"><div class="card-body"><p class="eyebrow">How levels work</p><h3>Transparent score</h3><dl class="score-legend"><div><dt>35%</dt><dd>Evidence freshness</dd></div><div><dt>20%</dt><dd>Evidence depth</dd></div><div><dt>20%</dt><dd>Focused design</dd></div><div><dt>15%</dt><dd>Risk follow-through</dd></div><div><dt>10%</dt><dd>Deep Dive context</dd></div></dl></div></section>
             </div>
             <section class="level-board" aria-labelledby="level-board-title"><header><div><p class="eyebrow">Visible team competition</p><h2 id="level-board-title">Team level board</h2><p>Scores are normalized, so larger teams do not win through volume alone.</p></div><span class="level-board__cycle">${escape(activeCycle.name)}</span></header>
-                <div class="level-board__rows">${board.length ? board.map(entry => `<article class="level-row ${entry.rank === 1 ? 'is-leading' : ''}"><span class="level-rank">${entry.rank}</span><span class="level-icon"><i class="bi ${entry.level.icon}"></i></span><span class="level-team"><strong>${escape(entry.ownerName)}</strong><small>Level ${entry.level.number} · ${escape(entry.level.name)}</small></span><span class="level-signals"><span>${entry.streak}w streak</span><span>${entry.freshKeyResults}/${entry.keyResultCount} fresh KRs</span></span><span class="level-score">${entry.score}</span></article>`).join('') : '<p class="empty-copy">Add Objectives to the active cycle to start the board.</p>'}</div>
+                <div class="level-board__rows">${board.length ? board.map(entry => `<article class="level-row ${entry.rank === 1 ? 'is-leading' : ''}"><span class="level-rank">${entry.rank}</span><span class="level-icon"><i class="bi ${entry.level.icon}"></i></span><span class="level-team"><strong>${escape(entry.ownerName)}</strong><small>Level ${entry.level.number} · ${escape(entry.level.name)}</small></span><span class="level-signals"><span>${entry.streak}w streak</span><span>${entry.keyResultCount ? `${entry.freshKeyResults}/${entry.keyResultCount} fresh KRs` : 'No KRs yet'}</span></span><span class="level-score">${entry.score}</span></article>`).join('') : '<p class="empty-copy">Add Objectives to the active cycle to start the board.</p>'}</div>
                 <footer><i class="bi bi-info-circle"></i> Use levels for coaching and shared learning—not individual performance evaluation.</footer>
             </section>`;
     }
