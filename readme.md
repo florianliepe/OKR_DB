@@ -28,6 +28,12 @@ Use [the OKR Coach system instruction](docs/okr-chatbot-system-instruction.md) i
 
 The coach can run a skippable, 5–7 question circular interview and propose an OKR set specification for review. Accepted specifications appear in the **Deep Dive** view with operating context, systemic perspectives, assumptions, tensions, success signals, and inherited category/level/commitment classifications. Objective-level classifications can override the set defaults.
 
+## Momentum and simplified views
+
+The **Momentum** view derives a private personal level and a normalized team level board from meaningful behavior: evidence freshness, evidence depth, focused OKR design, risk follow-through, and Deep Dive context. It intentionally does not reward logins, raw activity volume, or permanently green confidence.
+
+The cockpit uses concise task-oriented navigation. **Alignment** presents strategy, owners, Objectives, and dependencies as readable cards. **Timeline** presents persistently named Objective and Key Result rows with date ranges, progress, and coordinated hover/focus states.
+
 ## Architecture
 
 - `js/app.js` — authentication-aware application controller and event coordination
@@ -36,6 +42,7 @@ The coach can run a skippable, 5–7 question circular interview and propose an 
 - `js/chat-service.js` — n8n transport, project-context shaping, and response parsing
 - `js/chat-controller.js` — accessible chat interaction and rendering
 - `js/okr-specification.js` — specification normalization and set-to-objective inheritance
+- `js/gamification.js` — normalized private and team momentum calculations
 - `css/` — Eraneos design tokens and responsive component styling
 - `tests/` — contract tests for the assistant integration
 

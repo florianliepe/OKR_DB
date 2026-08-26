@@ -20,14 +20,15 @@ async function initializeApp(user) {
     try {
         const store = new FirestoreStore(user.uid);
         await store.loadAppData(); 
-        run(store, ui, user.uid);
+        run(store, ui, user);
     } catch (error) {
         console.error("Fatal Error: Could not initialize Firestore data.", error);
         ui.showToast("Error loading your data. Please refresh the page.", "danger");
     }
 }
 
-function run(store, ui, userId) {
+function run(store, ui, user) {
+    const userId = user.uid;
     let currentViewListeners = [];
     let explorerResponsibleFilter = 'all';
     let dashboardOwnerFilter = 'all';
@@ -247,11 +248,12 @@ function run(store, ui, userId) {
 
             switch(hash) {
                 case '#dashboard': ui.renderDashboardView(currentProject, dashboardOwnerFilter, dashboardResponsibleFilter); break;
+                case '#momentum': ui.renderMomentumView(currentProject, { email: user.email, displayName: user.displayName }); break;
                 case '#deep-dive': ui.renderDeepDiveView(currentProject, currentRole); break;
                 case '#explorer': ui.renderExplorerView(currentProject, document.getElementById('search-input').value, explorerResponsibleFilter, currentRole); break;
                 case '#cascade': ui.renderCascadeView(currentProject); break;
                 case '#workbench': setupWorkbench(currentProject, currentRole); break;
-                case '#gantt': ui.renderGanttView(currentProject, canEditGantt() ? handleGanttDateChange : () => {}); break;
+                case '#gantt': ui.renderGanttView(currentProject); break;
                 case '#risk-board': ui.renderRiskBoardView(currentProject); break;
                 case '#reporting': ui.renderReportingView(currentProject); break;
                 case '#cycles': ui.renderCyclesView(currentProject, currentRole); break;
@@ -260,11 +262,6 @@ function run(store, ui, userId) {
             initializeTooltips();
         };
         
-        const canEditGantt = () => {
-            const role = store.getCurrentUserRole();
-            return role === 'owner' || role === 'editor';
-        }
-
         const setupWorkbench = (project, userRole) => {
             ui.renderWorkbenchView(project.workbenchItems, userRole);
         
@@ -274,24 +271,6 @@ function run(store, ui, userId) {
             });
         };
         
-        const handleGanttDateChange = async (task, start, end) => {
-            const formattedStart = start.toISOString().split('T')[0];
-            const formattedEnd = end.toISOString().split('T')[0];
-            
-            if (confirm(`Change dates for "${task.name}" to ${formattedStart} - ${formattedEnd}?`)) {
-                const currentProject = store.getCurrentProject();
-                const objective = currentProject.objectives.find(o => o.id === task.id);
-                if (objective) {
-                    const updatedData = { ...objective, startDate: formattedStart, endDate: formattedEnd };
-                    await store.updateObjective(task.id, updatedData);
-                    ui.showToast('Objective dates updated.');
-                    router(); 
-                }
-            } else {
-                router();
-            }
-        };
-
         addListener(window, 'hashchange', router);
         addListener(document.getElementById('back-to-projects'), 'click', async () => { 
             window.location.hash = ''; 

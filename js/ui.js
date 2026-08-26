@@ -1,4 +1,5 @@
 import { hasOkrSpecification, normalizeOkrSpecification, OKR_CATEGORIES, OKR_COMMITMENTS, OKR_LEVELS, resolveObjectiveSpecification } from './okr-specification.js';
+import { buildPrivateMomentum, buildTeamLevelBoard } from './gamification.js';
 
 export class UI {
     constructor() {
@@ -248,17 +249,19 @@ export class UI {
                             </a>
                             <div class="sidebar-project"><span class="sidebar-project__label">Current workspace</span><span id="sidebar-project-name">${project.name}</span></div>
                             <ul class="nav nav-pills flex-column mb-auto">
-                                <li><span class="nav-section-label">Steer</span></li>
-                                <li class="nav-item"><a href="#dashboard" class="nav-link text-white" data-view="dashboard-view"><i class="bi bi-bar-chart-line-fill me-2"></i> Dashboard</a></li>
-                                <li class="nav-item"><a href="#deep-dive" class="nav-link text-white" data-view="deep-dive-view"><i class="bi bi-compass me-2"></i> OKR Deep Dive</a></li>
-                                <li class="nav-item"><a href="#explorer" class="nav-link text-white" data-view="explorer-view"><i class="bi bi-columns-gap me-2"></i> OKR Explorer</a></li>
-                                <li class="nav-item"><a href="#cascade" class="nav-link text-white" data-view="cascade-view"><i class="bi bi-diagram-3-fill me-2"></i> Cascade</a></li>
-                                <li class="nav-item"><a href="#risk-board" class="nav-link text-white" data-view="risk-board-view"><i class="bi bi-exclamation-triangle-fill me-2"></i> Risk Board</a></li>
+                                <li><span class="nav-section-label">Focus</span></li>
+                                <li class="nav-item"><a href="#dashboard" class="nav-link text-white" data-view="dashboard-view"><i class="bi bi-grid-1x2-fill me-2"></i> Overview</a></li>
+                                <li class="nav-item"><a href="#explorer" class="nav-link text-white" data-view="explorer-view"><i class="bi bi-bullseye me-2"></i> Objectives</a></li>
+                                <li class="nav-item"><a href="#momentum" class="nav-link text-white" data-view="momentum-view"><i class="bi bi-lightning-charge-fill me-2"></i> Momentum</a></li>
+                                <li class="nav-item"><a href="#cascade" class="nav-link text-white" data-view="cascade-view"><i class="bi bi-diagram-3-fill me-2"></i> Alignment</a></li>
                                 <li><span class="nav-section-label">Plan & learn</span></li>
+                                <li class="nav-item"><a href="#gantt" class="nav-link text-white" data-view="gantt-view"><i class="bi bi-calendar3 me-2"></i> Timeline</a></li>
+                                <li class="nav-item"><a href="#risk-board" class="nav-link text-white" data-view="risk-board-view"><i class="bi bi-exclamation-triangle-fill me-2"></i> Risks</a></li>
+                                <li class="nav-item"><a href="#deep-dive" class="nav-link text-white" data-view="deep-dive-view"><i class="bi bi-compass me-2"></i> Deep Dive</a></li>
                                 <li class="nav-item"><a href="#workbench" class="nav-link text-white" data-view="workbench-view"><i class="bi bi-lightbulb-fill me-2"></i> Workbench</a></li>
-                                <li class="nav-item"><a href="#gantt" class="nav-link text-white" data-view="gantt-view"><i class="bi bi-bar-chart-steps me-2"></i> Gantt</a></li>
-                                <li class="nav-item"><a href="#reporting" class="nav-link text-white" data-view="reporting-view"><i class="bi bi-clock-history me-2"></i> Reporting</a></li>
-                                <li class="nav-item"><a href="#cycles" class="nav-link text-white" data-view="cycles-view"><i class="bi bi-arrow-repeat me-2"></i> Cycle Management</a></li>
+                                <li><span class="nav-section-label">Manage</span></li>
+                                <li class="nav-item"><a href="#reporting" class="nav-link text-white" data-view="reporting-view"><i class="bi bi-clock-history me-2"></i> Insights</a></li>
+                                <li class="nav-item"><a href="#cycles" class="nav-link text-white" data-view="cycles-view"><i class="bi bi-arrow-repeat me-2"></i> Cycles</a></li>
                                 ${isOwner ? `<li class="nav-item"><a href="#settings" class="nav-link text-white" data-view="settings-view"><i class="bi bi-gear-fill me-2"></i> Settings</a></li>` : ''}
                             </ul>
                             <div class="sidebar-actions d-flex flex-column gap-2 pt-3">
@@ -282,13 +285,14 @@ export class UI {
                                         <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" id="cycle-selector-btn" disabled></button>
                                         <ul class="dropdown-menu dropdown-menu-end" id="cycle-selector-list"></ul>
                                     </div>
-                                    ${canEdit ? `<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#objectiveModal" id="add-objective-btn"><i class="bi bi-plus-lg"></i> Add objective</button>` : ''}
-                                    <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#shareProjectModal" id="share-project-btn"><i class="bi bi-people"></i> Share</button>
+                                    ${canEdit ? `<button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#objectiveModal" id="add-objective-btn"><i class="bi bi-plus-lg"></i> New objective</button>` : ''}
+                                    <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#shareProjectModal" id="share-project-btn" title="Share workspace" aria-label="Share workspace"><i class="bi bi-people"></i><span class="share-label">Share</span></button>
                                 </div>
                             </div>
                         </nav>
                         <div class="p-4 content-scroll-area">
                             <div id="dashboard-view" class="view-container" style="display:none;"></div>
+                            <div id="momentum-view" class="view-container" style="display:none;"></div>
                             <div id="deep-dive-view" class="view-container" style="display:none;"></div>
                             <div id="explorer-view" class="view-container" style="display:none;"></div>
                             <div id="cascade-view" class="view-container" style="display:none;"></div>
@@ -382,15 +386,16 @@ export class UI {
 
         if (viewTitle) {
             const titles = {
-                'dashboard-view': 'Dashboard',
-                'deep-dive-view': 'OKR Deep Dive',
-                'explorer-view': 'OKR Explorer',
-                'cascade-view': 'OKR Cascade',
+                'dashboard-view': 'Overview',
+                'momentum-view': 'Momentum',
+                'deep-dive-view': 'Deep Dive',
+                'explorer-view': 'Objectives',
+                'cascade-view': 'Alignment',
                 'workbench-view': 'Workbench',
-                'gantt-view': 'Gantt Timeline',
-                'risk-board-view': 'Risk Board',
-                'reporting-view': 'Reporting',
-                'cycles-view': 'Cycle Management',
+                'gantt-view': 'Timeline',
+                'risk-board-view': 'Risks',
+                'reporting-view': 'Insights',
+                'cycles-view': 'Cycles',
                 'settings-view': 'Project Settings'
             };
             viewTitle.textContent = titles[viewId] || '';
@@ -467,7 +472,7 @@ export class UI {
                             ${group.riskyKrs.map(kr => {
                                 const borderColor = kr.confidence === 'At Risk' ? 'border-warning' : 'border-danger';
                                 return `
-                                    <div class="card risk-card ${borderColor} bg-dark mb-2">
+                                    <div class="card risk-card ${borderColor} mb-2">
                                         <div class="card-body">
                                             ${this.renderKeyResult(kr, group.objective.id, null, 'viewer')}
                                         </div>
@@ -516,25 +521,89 @@ export class UI {
             <div id="report-content">${reportContentHtml}</div>`;
     }
 
-    renderGanttView(project, onDateChangeCallback) {
+    renderGanttView(project) {
         const view = document.getElementById('gantt-view');
         if (!view) return;
         const activeCycle = project.cycles.find(c => c.status === 'Active');
         if (!activeCycle) { view.innerHTML = '<div class="alert alert-warning">No active cycle found.</div>'; return; }
-        const objectivesForGantt = project.objectives
-            .filter(obj => obj.cycleId === activeCycle.id && obj.startDate && obj.endDate)
-            .map(obj => ({
-                id: obj.id, name: obj.title, start: obj.startDate, end: obj.endDate,
-                progress: obj.progress, dependencies: obj.dependsOn?.join(',') || ''
+        const objectives = project.objectives.filter(objective => objective.cycleId === activeCycle.id && objective.startDate && objective.endDate);
+        if (!objectives.length) { view.innerHTML = '<div class="alert alert-info">Add start and end dates to an Objective to place it on the Timeline.</div>'; return; }
+        const escape = value => this._escapeHtml(value || '');
+        const toTime = value => new Date(`${value}T12:00:00`).getTime();
+        const datedValues = objectives.flatMap(objective => [objective.startDate, objective.endDate]).filter(Boolean);
+        const rangeStart = Math.min(toTime(activeCycle.startDate || datedValues[0]), ...datedValues.map(toTime));
+        const rangeEnd = Math.max(toTime(activeCycle.endDate || datedValues.at(-1)), ...datedValues.map(toTime));
+        const duration = Math.max(86400000, rangeEnd - rangeStart);
+        const position = value => Math.max(0, Math.min(100, ((toTime(value) - rangeStart) / duration) * 100));
+        const width = (start, end) => Math.max(2, position(end) - position(start));
+        const dateLabel = value => new Date(`${value}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        const monthTicks = [];
+        const tickCursor = new Date(rangeStart);
+        tickCursor.setDate(1);
+        while (tickCursor.getTime() <= rangeEnd) {
+            monthTicks.push({ label: tickCursor.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }), left: position(tickCursor.toISOString().slice(0, 10)) });
+            tickCursor.setMonth(tickCursor.getMonth() + 1);
+        }
+        const rows = objectives.flatMap(objective => {
+            const objectiveRow = {
+                type: 'objective', title: objective.title, start: objective.startDate, end: objective.endDate,
+                progress: Math.round(objective.progress || 0), owner: project.teams.find(team => team.id === objective.ownerId)?.name || project.companyName
+            };
+            const keyResultRows = (objective.keyResults || []).map(keyResult => ({
+                type: 'key-result', title: keyResult.title, start: objective.startDate, end: objective.endDate,
+                progress: Math.round(keyResult.progress || 0), owner: objective.title
             }));
-        if (objectivesForGantt.length === 0) { view.innerHTML = '<div class="alert alert-info">No objectives with dates found.</div>'; return; }
-        view.innerHTML = '<svg id="gantt-chart"></svg>';
-        new Gantt("#gantt-chart", objectivesForGantt, {
-            on_date_change: onDateChangeCallback,
-            header_height: 50, column_width: 30, step: 24, view_modes: ['Day', 'Week', 'Month'],
-            bar_height: 20, bar_corner_radius: 3, arrow_curve: 5, padding: 18,
-            view_mode: 'Week', date_format: 'YYYY-MM-DD', language: 'en'
+            return [objectiveRow, ...keyResultRows];
         });
+        view.innerHTML = `
+            <div class="view-intro"><div><p class="eyebrow">Active cycle · ${escape(activeCycle.name)}</p><h2>Outcome timeline</h2><p>Objective and Key Result names stay visible. Hover or focus a row to inspect its dates and progress.</p></div><span class="view-intro__meta">${objectives.length} objectives · ${rows.length - objectives.length} key results</span></div>
+            <div class="timeline-shell" role="table" aria-label="Objective and Key Result timeline">
+                <div class="timeline-header" role="row"><div class="timeline-name-head" role="columnheader">Outcome</div><div class="timeline-axis" role="columnheader">${monthTicks.map(tick => `<span style="left:${tick.left}%">${escape(tick.label)}</span>`).join('')}</div></div>
+                ${rows.map(row => {
+                    const details = `${row.type === 'objective' ? 'Objective' : 'Key Result'} · ${dateLabel(row.start)}–${dateLabel(row.end)} · ${row.progress}% progress`;
+                    return `<div class="timeline-row timeline-row--${row.type}" role="row" tabindex="0" aria-label="${escape(row.title)}. ${escape(details)}" title="${escape(details)}">
+                        <div class="timeline-name" role="cell"><span class="timeline-kind">${row.type === 'objective' ? 'O' : 'KR'}</span><span><strong>${escape(row.title)}</strong><small>${escape(row.owner)}</small></span></div>
+                        <div class="timeline-track" role="cell">${monthTicks.map(tick => `<i class="timeline-gridline" style="left:${tick.left}%"></i>`).join('')}<span class="timeline-bar" style="left:${position(row.start)}%;width:${width(row.start, row.end)}%;--timeline-progress:${Math.max(0, Math.min(100, row.progress))}%"><span>${escape(row.title)}</span></span></div>
+                    </div>`;
+                }).join('')}
+            </div>`;
+    }
+
+    renderMomentumView(project, user = {}) {
+        const view = document.getElementById('momentum-view');
+        if (!view) return;
+        const activeCycle = (project.cycles || []).find(cycle => cycle.status === 'Active');
+        if (!activeCycle) { view.innerHTML = '<div class="alert alert-warning">Activate a cycle to build momentum.</div>'; return; }
+        const escape = value => this._escapeHtml(value || '');
+        const personal = buildPrivateMomentum(project, user);
+        const board = buildTeamLevelBoard(project);
+        const nextAction = personal?.matched
+            ? personal.freshKeyResults < personal.keyResultCount ? 'Update one Key Result with current evidence.'
+                : personal.wellFormedObjectives < personal.objectiveCount ? 'Focus an Objective to two–five measurable Key Results.'
+                    : personal.riskCount > personal.followedRisks ? 'Add evidence to an exposed risk.'
+                        : 'Keep the weekly evidence rhythm going.'
+            : 'Assign your name or email as an Objective’s responsible person to start private momentum.';
+        const personalCard = personal?.matched ? `
+            <section class="momentum-personal" aria-labelledby="my-momentum-title">
+                <div><p class="eyebrow">Visible only to you</p><h2 id="my-momentum-title">My momentum</h2><p>Level ${personal.level.number} · ${escape(personal.level.name)}</p></div>
+                <div class="momentum-score"><strong>${personal.score}</strong><span>/ 100</span></div>
+                <div class="momentum-progress"><span style="width:${personal.score}%"></span></div>
+                <div class="momentum-next"><i class="bi bi-arrow-up-right"></i><span><small>Best next move</small><strong>${escape(nextAction)}</strong></span></div>
+                <div class="momentum-stats"><span><strong>${personal.streak}</strong> week streak</span><span><strong>${personal.recentCheckIns}</strong> recent check-ins</span><span><strong>${personal.freshKeyResults}/${personal.keyResultCount}</strong> fresh KRs</span></div>
+            </section>` : `
+            <section class="momentum-personal momentum-personal--empty"><div><p class="eyebrow">Visible only to you</p><h2 id="my-momentum-title">Start your momentum</h2><p>${escape(nextAction)}</p></div><i class="bi bi-person-check"></i></section>`;
+        const badges = personal?.badges || [];
+        view.innerHTML = `
+            <div class="view-intro"><div><p class="eyebrow">Meaningful participation</p><h2>Momentum, not points</h2><p>Levels reflect evidence habits, focused design, risk follow-through, and context—not logins or permanently green status.</p></div><a href="#explorer" class="btn btn-outline-primary">Update an outcome</a></div>
+            ${personalCard}
+            <div class="momentum-grid">
+                <section class="card momentum-card"><div class="card-body"><p class="eyebrow">Private achievements</p><h3>Milestones earned</h3><div class="badge-grid">${badges.length ? badges.map(badge => `<article class="momentum-badge"><i class="bi ${badge.icon}"></i><span><strong>${escape(badge.name)}</strong><small>${escape(badge.description)}</small></span></article>`).join('') : '<p class="empty-copy">Your first badge appears after a Deep Dive, regular evidence, focused design, or risk follow-through.</p>'}</div></div></section>
+                <section class="card momentum-card"><div class="card-body"><p class="eyebrow">How levels work</p><h3>Transparent score</h3><dl class="score-legend"><div><dt>35%</dt><dd>Evidence freshness</dd></div><div><dt>20%</dt><dd>Evidence depth</dd></div><div><dt>20%</dt><dd>Focused design</dd></div><div><dt>15%</dt><dd>Risk follow-through</dd></div><div><dt>10%</dt><dd>Deep Dive context</dd></div></dl></div></section>
+            </div>
+            <section class="level-board" aria-labelledby="level-board-title"><header><div><p class="eyebrow">Visible team competition</p><h2 id="level-board-title">Team level board</h2><p>Scores are normalized, so larger teams do not win through volume alone.</p></div><span class="level-board__cycle">${escape(activeCycle.name)}</span></header>
+                <div class="level-board__rows">${board.length ? board.map(entry => `<article class="level-row ${entry.rank === 1 ? 'is-leading' : ''}"><span class="level-rank">${entry.rank}</span><span class="level-icon"><i class="bi ${entry.level.icon}"></i></span><span class="level-team"><strong>${escape(entry.ownerName)}</strong><small>Level ${entry.level.number} · ${escape(entry.level.name)}</small></span><span class="level-signals"><span>${entry.streak}w streak</span><span>${entry.freshKeyResults}/${entry.keyResultCount} fresh KRs</span></span><span class="level-score">${entry.score}</span></article>`).join('') : '<p class="empty-copy">Add Objectives to the active cycle to start the board.</p>'}</div>
+                <footer><i class="bi bi-info-circle"></i> Use levels for coaching and shared learning—not individual performance evaluation.</footer>
+            </section>`;
     }
 
     renderDashboardView(project, filterOwnerId = 'all', filterResponsible = 'all') {
@@ -1121,123 +1190,29 @@ export class UI {
     renderCascadeView(project) {
         const view = document.getElementById('cascade-view');
         if (!view) return;
-        view.innerHTML = ''; // Clear previous render
-    
         const activeCycle = project.cycles.find(c => c.status === 'Active');
-        if (!activeCycle) {
-            view.innerHTML = '<div class="alert alert-warning">No active cycle found.</div>';
-            return;
-        }
-    
+        if (!activeCycle) { view.innerHTML = '<div class="alert alert-warning">No active cycle found.</div>'; return; }
+        const escape = value => this._escapeHtml(value || '');
         const objectivesInCycle = project.objectives.filter(o => o.cycleId === activeCycle.id);
-    
-        // 1. Data Transformation
-        const nodes = [];
-        const links = [];
-        const teamNodes = {};
-    
-        // Top-level nodes
-        const missionNode = { id: 'mission', type: 'foundation', text: 'Mission', fullText: project.foundation.mission, level: 0 };
-        const visionNode = { id: 'vision', type: 'foundation', text: 'Vision', fullText: project.foundation.vision, level: 0 };
-        nodes.push(missionNode, visionNode);
-    
-        // Company objectives
-        const companyObjectives = objectivesInCycle.filter(o => o.ownerId === 'company');
-        companyObjectives.forEach(obj => {
-            nodes.push({ id: obj.id, type: 'company-obj', text: obj.title, level: 1 });
-            links.push({ source: 'mission', target: obj.id, type: 'hierarchy' });
-            links.push({ source: 'vision', target: obj.id, type: 'hierarchy' });
-        });
-    
-        // Team nodes and objectives
-        project.teams.forEach(team => {
-            const teamNode = { id: team.id, type: 'team', text: team.name, level: 1 };
-            teamNodes[team.id] = teamNode;
-            nodes.push(teamNode);
-            
-            const teamObjectives = objectivesInCycle.filter(o => o.ownerId === team.id);
-            if (teamObjectives.length > 0) {
-                links.push({ source: 'mission', target: team.id, type: 'hierarchy' });
-                 links.push({ source: 'vision', target: team.id, type: 'hierarchy' });
-            }
-            
-            teamObjectives.forEach(obj => {
-                nodes.push({ id: obj.id, type: 'team-obj', text: obj.title, level: 2 });
-                links.push({ source: team.id, target: obj.id, type: 'hierarchy' });
-            });
-        });
-    
-        // Dependency links
-        objectivesInCycle.forEach(obj => {
-            if (obj.dependsOn) {
-                obj.dependsOn.forEach(depId => {
-                    links.push({ source: depId, target: obj.id, type: 'dependency' });
-                });
-            }
-        });
-    
-        // 2. D3 Rendering
-        const width = view.clientWidth;
-        const height = view.clientHeight;
-        const svg = d3.select(view).append("svg")
-            .attr("width", width)
-            .attr("height", height)
-            .attr("viewBox", [-width / 2, -height / 2, width, height]);
-    
-        const tooltip = d3.select(view).append("div")
-            .attr("class", "cascade-tooltip");
-    
-        const simulation = d3.forceSimulation(nodes)
-            .force("link", d3.forceLink(links).id(d => d.id).distance(100))
-            .force("charge", d3.forceManyBody().strength(-300))
-            .force("center", d3.forceCenter(0, 0))
-            .force("y", d3.forceY(d => d.level * 200 - height / 3).strength(0.5));
-    
-        const link = svg.append("g")
-            .selectAll("line")
-            .data(links)
-            .join("line")
-            .attr("class", d => `cascade-link ${d.type}`);
-    
-        const node = svg.append("g")
-            .selectAll("g")
-            .data(nodes)
-            .join("g")
-            .attr("class", "cascade-node")
-            .call(d3.drag()
-                .on("start", (event, d) => { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
-                .on("drag", (event, d) => { d.fx = event.x; d.fy = event.y; })
-                .on("end", (event, d) => { if (!event.active) simulation.alphaTarget(0); d.fx = null; d.fy = null; }));
-    
-        const color = d3.scaleOrdinal(d3.schemeCategory10);
-        node.append("circle")
-            .attr("r", d => d.type === 'foundation' || d.type === 'team' ? 15 : 10)
-            .attr("fill", d => color(d.type));
-    
-        node.append("text")
-            .text(d => d.text.length > 20 ? d.text.substring(0, 18) + '...' : d.text)
-            .attr("x", 18)
-            .attr("y", 4)
-            .style("fill", "#fff");
-    
-        node.on("mouseover", (event, d) => {
-            tooltip.transition().duration(200).style("opacity", .9);
-            tooltip.html(d.fullText || d.text)
-                .style("left", (event.pageX + 10) + "px")
-                .style("top", (event.pageY - 28) + "px");
-        }).on("mouseout", () => {
-            tooltip.transition().duration(500).style("opacity", 0);
-        });
-    
-        simulation.on("tick", () => {
-            link
-                .attr("x1", d => d.source.x)
-                .attr("y1", d => d.source.y)
-                .attr("x2", d => d.target.x)
-                .attr("y2", d => d.target.y);
-            node
-                .attr("transform", d => `translate(${d.x},${d.y})`);
-        });
+        const owners = [{ id: 'company', name: project.companyName || project.name, icon: 'bi-buildings' }, ...(project.teams || []).map(team => ({ ...team, icon: 'bi-people' }))];
+        const objectiveLookup = new Map(objectivesInCycle.map(objective => [objective.id, objective]));
+        const ownerGroups = owners.map(owner => ({
+            ...owner,
+            objectives: objectivesInCycle.filter(objective => objective.ownerId === owner.id)
+        })).filter(owner => owner.objectives.length);
+        view.innerHTML = `
+            <div class="view-intro"><div><p class="eyebrow">${escape(activeCycle.name)}</p><h2>Strategy to outcomes</h2><p>A readable map of direction, ownership, Objectives, and explicit dependencies.</p></div><span class="view-intro__meta">${objectivesInCycle.length} aligned objectives</span></div>
+            <section class="alignment-foundation" aria-label="Strategic direction">
+                <article><span><i class="bi bi-flag"></i> Mission</span><p>${escape(project.foundation?.mission || 'No mission defined yet.')}</p></article>
+                <article><span><i class="bi bi-eye"></i> Vision</span><p>${escape(project.foundation?.vision || 'No vision defined yet.')}</p></article>
+            </section>
+            <div class="alignment-flow-label" aria-hidden="true"><span>Direction</span><i class="bi bi-arrow-down"></i><span>Owners & outcomes</span></div>
+            <section class="alignment-groups" aria-label="Owners and aligned Objectives">
+                ${ownerGroups.length ? ownerGroups.map(owner => `<article class="alignment-owner"><header><span class="alignment-owner__icon"><i class="bi ${owner.icon}"></i></span><div><small>Owner</small><h3>${escape(owner.name)}</h3></div><span class="alignment-owner__count">${owner.objectives.length}</span></header><div class="alignment-objectives">${owner.objectives.map(objective => {
+                    const dependencies = (objective.dependsOn || []).map(id => objectiveLookup.get(id)).filter(Boolean);
+                    return `<div class="alignment-objective"><div class="alignment-objective__top"><span class="alignment-objective__mark">O</span><h4>${escape(objective.title)}</h4><strong>${Math.round(objective.progress || 0)}%</strong></div><div class="alignment-objective__progress"><span style="width:${Math.max(0, Math.min(100, objective.progress || 0))}%"></span></div><p>${objective.keyResults?.length || 0} key results${objective.responsible ? ` · ${escape(objective.responsible)}` : ''}</p>${dependencies.length ? `<div class="alignment-dependencies"><small>Depends on</small>${dependencies.map(dependency => `<a href="#explorer" title="Open Objectives">${escape(dependency.title)}</a>`).join('')}</div>` : ''}</div>`;
+                }).join('')}</div></article>`).join('') : '<div class="alert alert-info">Add Objectives to the active cycle to build the alignment map.</div>'}
+            </section>`;
     }
 
     renderNewProjectModal() { return `<div class="modal fade" id="newProjectModal" data-bs-backdrop="static" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><form id="new-project-form"><div class="modal-header"><h5 class="modal-title">New Project</h5></div><div class="modal-body"><h6>Details</h6><div class="mb-3"><label for="project-name" class="form-label">Name</label><input type="text" class="form-control" id="project-name" required></div><div class="mb-3"><label for="project-mission" class="form-label">Mission</label><textarea class="form-control" id="project-mission" rows="2" required></textarea></div><div class="mb-3"><label for="project-vision" class="form-label">Vision</label><textarea class="form-control" id="project-vision" rows="2" required></textarea></div><hr><h6>Teams</h6><p class="text-muted small">One team per line.</p><div class="mb-3"><textarea class="form-control" id="project-teams" rows="4"></textarea></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Create</button></div></form></div></div></div>`; }

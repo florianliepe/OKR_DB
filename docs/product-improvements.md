@@ -1,5 +1,13 @@
 # Product improvement backlog
 
+## Implemented in the lean cockpit redesign
+
+- Task-oriented navigation with concise labels: Overview, Objectives, Momentum, Alignment, Timeline, Risks, Deep Dive, Workbench, Insights, and Cycles.
+- Private personal momentum and a visible normalized team level board based on meaningful OKR behavior.
+- Deterministic, readable Alignment cards with black text and explicit dependencies.
+- Named Objective and Key Result Timeline rows with hover, keyboard focus, dates, and progress.
+- Removal of the D3 and Frappe Gantt runtime dependencies.
+
 ## Now
 
 - Protect the public n8n endpoint with an application-level token or authenticated proxy and restrict CORS to the production dashboard origin.
@@ -9,6 +17,11 @@
 
 ## Next
 
+- Consolidate Overview and Insights around a single “attention now” decision feed; move historical analytics behind progressive disclosure.
+- Replace multi-step editing modals with a reusable side drawer so users retain their place and context.
+- Add a command palette that combines navigation, Objective search, and common actions; then collapse Manage navigation by default.
+- Instrument privacy-safe task completion analytics before removing further views or controls.
+- Persist explicit activity events for check-ins, risk resolution, and Deep Dive completion so Momentum can distinguish actions more precisely than KR history alone.
 - Add a cycle setup wizard with OKR quality checks, baselines, target dates, and owner capacity review.
 - Add weekly check-ins, comments, reminders, confidence explanations, and an immutable activity trail.
 - Turn the dashboard into a decision surface: show deltas, stale updates, leading risks, missing owners, and recommended attention—not only totals.
